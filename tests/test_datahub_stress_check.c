@@ -334,8 +334,8 @@ START_TEST(test_industrial_stress) {
     time_t start_time = time(NULL);
     while (time(NULL) - start_time < TEST_DURATION) {
         sleep(1);
-        printf("Messages per second: %d, Total: %d, Errors: %d\n",
-               total_messages, total_messages, error_count);
+        printf("Total Messages : %d, Errors: %d\n",
+                total_messages, error_count);
     }
     
     // 停止测试
