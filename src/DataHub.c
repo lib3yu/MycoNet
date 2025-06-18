@@ -309,8 +309,8 @@ DH_API const char *DataHub_GetErrStr(int err)
 
 DH_API int DataHub_InitNode(DataNode_t *node_p) 
 {
-    if (!node_p || !node_p->name) return DH_ERR_INVALID;
-    
+    if (!node_p || node_p->name[0] == '\0') return DH_ERR_INVALID;
+
     struct DataNodePriv* priv = node_priv(node_p);
     bool expected = false;
     if (!atomic_compare_exchange_strong(&priv->is_inited, &expected, true)) {

@@ -73,11 +73,11 @@ typedef uint32_t DataNodePrivBase_t;
 
 
 typedef struct DataNode {
-    const char*        name;     
-    uint32_t           size;     
-    NodeConf_t         conflags; 
+    char               name[64];
+    uint32_t           size;
+    NodeConf_t         conflags;
     uint32_t           event_msk;
-    EventCallback_t    event_cb; 
+    EventCallback_t    event_cb;
     void*              user_data;
     DataNodePrivBase_t priv[DataNodePrivSiz];
 } DataNode_t;
