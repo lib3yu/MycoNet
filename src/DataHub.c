@@ -106,12 +106,14 @@
     #error "Unsupported platform or compiler. Define USE_FREERTOS or ensure you are on a POSIX system with GCC/Clang."
 #endif
 
-typedef struct ll_node {
+typedef \
+struct ll_node {
     struct ll_node *next;
     DataNode_t     *data;
 } ll_node_t;
 
-typedef struct ll_list {
+typedef \
+struct ll_list {
     ll_node_t *head;
     ll_node_t *tail;
     size_t     size;
@@ -128,7 +130,8 @@ struct DataNodePriv {
     Rwlock_t     cache_lock;
 };
 
-typedef struct DataHub {
+typedef \
+struct DataHub {
     const char*   name;
     ll_list_t     node_list;
     Rwlock_t      list_lock;
@@ -519,7 +522,6 @@ static int SendEvent(struct DataNode* node_p, EventParam_t* param)
 {
     if (!node_p || !param) return DH_ERR_INVALID;
     if (!(node_p->event_msk & param->event)) return DH_ERR_NOSUPPORT;
-    if (!node_p->event_cb) return DH_ERR_FAIL;
     
     // check if CONF_CACHED is enabled
     if (param->event == EVENT_PULL)
@@ -537,6 +539,7 @@ static int SendEvent(struct DataNode* node_p, EventParam_t* param)
         }
     }
     
+    if (!node_p->event_cb) return DH_ERR_FAIL;
     return node_p->event_cb(node_p, param);
 }
 
