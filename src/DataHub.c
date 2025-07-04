@@ -477,9 +477,10 @@ DH_API int DataHub_NodeSubscribe(DataNode_t *node_p, const char *name)
     if (!atomic_load(&hub_p()->is_inited)) return DH_ERR_NOTINITIALIZED;
     if (!atomic_load(&node_priv(node_p)->is_registered)) return DH_ERR_NOTFOUND;
 
+    // Cannot subscribe to nodes without publish/publish_signal events
     EventCode_t check_mask = node_p->event_msk;
     if ((check_mask & (EVENT_PUBLISH | EVENT_PUBLISH_SIG)) == 0) {
-        return DH_ERR_NOSUPPORT; // Cannot subscribe to publish events
+        return DH_ERR_NOSUPPORT; 
     }
 
     DataNode_t *pub_node = DataHub_SearchNode(name);
