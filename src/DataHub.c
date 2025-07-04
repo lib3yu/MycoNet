@@ -151,6 +151,21 @@ _Static_assert(sizeof(struct DataNodePriv) <= DATAHUB_PRIV_DATA_SIZE,
 #define node_priv(node_p) ((struct DataNodePriv *)((node_p)->priv))
 #define hub_p() (&s_hub)
 
+//==============================================================================
+// Dummy Node Definition
+//==============================================================================
+
+static DataNode_t s_dummyNode = {
+    .name = "_DummyNode_",
+    .conflags = CONF_NONE,
+    .event_msk = EVENT_NONE,
+    .event_cb = NULL, // No event callback
+    .user_data = NULL, // No user data
+    .size = 0,
+};
+
+DataNode_t * const _dummyNode = &s_dummyNode;
+
 
 //==============================================================================
 // Internal Linked-List Implementation
@@ -246,6 +261,20 @@ DH_API int DataHub_Init(void)
         atomic_store(&hub_p()->is_inited, false);
         return DH_ERR_FAIL;
     }
+
+    // Initialize the dummy node
+    int err = 0;
+    
+    if ((err = DataHub_InitNode(_dummyNode)) != DH_OK) {
+        return err;
+    }
+
+    // Push the dummy node to the hub's node list
+    if ((err = DataHub_PushBackNode(_dummyNode)) != DH_OK) {
+        DataHub_DeinitNode(_dummyNode);
+        return err;
+    }
+
     return DH_OK;
 }
 

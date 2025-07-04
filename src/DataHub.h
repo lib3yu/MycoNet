@@ -82,6 +82,10 @@ typedef struct DataNode {
     DataNodePrivBase_t priv[DataNodePrivSiz];
 } DataNode_t;
 
+/** only support pull/notify other nodes */
+/** not support publish/publish_signal */
+extern DataNode_t * const _dummyNode;
+
 //==============================================================================
 // API Functions
 //==============================================================================
