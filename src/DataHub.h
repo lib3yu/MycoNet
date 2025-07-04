@@ -52,6 +52,7 @@ typedef enum EventCode {
     EVENT_PUBLISH = 1 << 0,
     EVENT_PULL    = 1 << 1,
     EVENT_NOTIFY  = 1 << 2,
+    EVENT_PUBLISH_SIG = 1 << 3,
 } EventCode_t;
 
 typedef 
@@ -108,6 +109,7 @@ DH_API int DataHub_RemoveNode(DataNode_t *node_p);
 DH_API int DataHub_NodeSubscribe(DataNode_t *node_p, const char *name);
 DH_API int DataHub_NodeUnsubscribe(DataNode_t *node_p, const char *name);
 DH_API int DataHub_NodePublish(DataNode_t *node_p, const void *data_p, int size);
+DH_API int DataHub_NodePublishSignal(DataNode_t *node_p, const void *data_p, int size);
 DH_API int DataHub_NodePull(DataNode_t *node_p, const char *name, void *data_p, uint32_t size);
 DH_API int DataHub_NodeNotify(DataNode_t *node_p, const char *name, const void *data_p, int size);
 

@@ -567,18 +567,13 @@ static int SendEvent(struct DataNode* node_p, EventParam_t* param)
             return DH_OK;
         }
     }
-    
+
     if (!node_p->event_cb) return DH_ERR_FAIL;
     return node_p->event_cb(node_p, param);
 }
 
-
-DH_API int DataHub_NodePublish(DataNode_t *node_p, const void *data_p, int size)
+static int node_publish(DataNode_t *node_p, const void *data_p, int size, int just_signal)
 {
-    if (!node_p || !data_p || size < 0) return DH_ERR_INVALID;
-    if (!atomic_load(&node_priv(node_p)->is_registered)) return DH_ERR_NOTFOUND;
-    if (node_p->size != 0 && node_p->size != (uint32_t)size) return DH_ERR_SIZE_MISMATCH;
-
     struct DataNodePriv* priv = node_priv(node_p);
 
     // update the cache first.
@@ -588,20 +583,25 @@ DH_API int DataHub_NodePublish(DataNode_t *node_p, const void *data_p, int size)
         Rwlock_unlock(&priv->cache_lock);
     }
 
+    // Determine the event type
+    void *data_p_cast = just_signal ? NULL : (void*)data_p;
+    uint32_t size_cast = just_signal ? 0 : (uint32_t)size;
+    EventCode_t event_type = just_signal ? EVENT_PUBLISH_SIG : EVENT_PUBLISH;
+
     // notify all subscribers.
     Mutex_lock(&priv->subscribers_lock);
     ll_list_for_each(&priv->subscribers, sub_ll_node) 
     {
         DataNode_t* sub_node = sub_ll_node->data;
 
-        if (sub_node && sub_node->event_cb && (sub_node->event_msk & EVENT_PUBLISH)) 
+        if (sub_node && sub_node->event_cb && (sub_node->event_msk & event_type)) 
         {
             EventParam_t param = {
-                .event = EVENT_PUBLISH,
+                .event = event_type,
                 .sender = node_p,
                 .recver = sub_node,
-                .data_p = (void*)data_p,
-                .size = (uint32_t)size,
+                .data_p = data_p_cast,
+                .size = size_cast,
             };
 
             SendEvent(sub_node, &param);
@@ -610,6 +610,24 @@ DH_API int DataHub_NodePublish(DataNode_t *node_p, const void *data_p, int size)
     Mutex_unlock(&priv->subscribers_lock);
 
     return DH_OK;
+}
+
+DH_API int DataHub_NodePublish(DataNode_t *node_p, const void *data_p, int size)
+{
+    if (!node_p || !data_p || size < 0) return DH_ERR_INVALID;
+    if (!atomic_load(&node_priv(node_p)->is_registered)) return DH_ERR_NOTFOUND;
+    if (node_p->size != 0 && node_p->size != (uint32_t)size) return DH_ERR_SIZE_MISMATCH;
+
+    return node_publish(node_p, data_p, size, 0); // publish with data
+}
+
+DH_API int DataHub_NodePublishSignal(DataNode_t *node_p, const void *data_p, int size)
+{
+    if (!node_p || !data_p || size < 0) return DH_ERR_INVALID;
+    if (!atomic_load(&node_priv(node_p)->is_registered)) return DH_ERR_NOTFOUND;
+    if (node_p->size != 0 && node_p->size != (uint32_t)size) return DH_ERR_SIZE_MISMATCH;
+
+    return node_publish(node_p, data_p, size, 1); // publish just signal
 }
 
 DH_API int DataHub_NodePull(DataNode_t *node_p, const char *name, void *data_p, uint32_t size) 
