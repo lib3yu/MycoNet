@@ -476,9 +476,9 @@ DH_API int DataHub_NodeSubscribe(DataNode_t *node_p, const char *name)
     if (!node_p || !name) return DH_ERR_INVALID;
     if (!atomic_load(&hub_p()->is_inited)) return DH_ERR_NOTINITIALIZED;
     if (!atomic_load(&node_priv(node_p)->is_registered)) return DH_ERR_NOTFOUND;
-    
+
     EventCode_t check_mask = node_p->event_msk;
-    if (check_mask & (EVENT_PUBLISH | EVENT_PUBLISH_SIG)) {
+    if ((check_mask & (EVENT_PUBLISH | EVENT_PUBLISH_SIG)) == 0) {
         return DH_ERR_NOSUPPORT; // Cannot subscribe to publish events
     }
 
