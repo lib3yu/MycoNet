@@ -171,14 +171,16 @@ DataNode_t * const _dummyNode = &s_dummyNode;
 // Internal Linked-List Implementation
 //==============================================================================
 
-static void ll_list_init(ll_list_t *list) {
+static void ll_list_init(ll_list_t *list) 
+{
     if (!list) return;
     list->head = NULL;
     list->tail = NULL;
     list->size = 0;
 }
 
-static int ll_list_push_back(ll_list_t *list, DataNode_t *data) {
+static int ll_list_push_back(ll_list_t *list, DataNode_t *data) 
+{
     if (!list || !data) return -1;
     ll_node_t *node = Mem_alloc(sizeof(ll_node_t));
     if (!node) return -1;
@@ -194,7 +196,8 @@ static int ll_list_push_back(ll_list_t *list, DataNode_t *data) {
     return 0;
 }
 
-static int ll_list_remove(ll_list_t *list, const DataNode_t *data) {
+static int ll_list_remove(ll_list_t *list, const DataNode_t *data) 
+{
     if (!list || !data) return -1;
     ll_node_t **pp = &list->head;
     ll_node_t *prev = NULL;
@@ -278,7 +281,8 @@ DH_API int DataHub_Init(void)
     return DH_OK;
 }
 
-DH_API int DataHub_Deinit(void) {
+DH_API int DataHub_Deinit(void) 
+{
     bool expected = true;
     if (!atomic_compare_exchange_strong(&hub_p()->is_inited, &expected, false)) {
         return DH_ERR_NOTINITIALIZED;
