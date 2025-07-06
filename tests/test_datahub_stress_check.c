@@ -9,7 +9,7 @@
 #include <time.h>
 #include <unistd.h> 
 #include <string.h> 
-#include "../src/DataHub.h"
+#include "../include/DataHub.h"
 
 #define NUM_SENSORS 50    // 传感器节点数量
 #define NUM_CONTROLLERS 20 // 控制器节点数量

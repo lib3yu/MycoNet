@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include "../src/DataHub.h"
+#include "../include/DataHub.h"
 
 /* Test callback counters */
 static int publish_called = 0;
@@ -71,11 +71,11 @@ END_TEST
 
 START_TEST(test_node_count) {
     DataHub_Init();
-    ck_assert_int_eq(DataHub_GetNodeNum(), 0);
+    ck_assert_int_eq(DataHub_GetNodeNum(), 1); // Only dummy node exists
     
     DataHub_InitNode(&node1);
     DataHub_PushBackNode(&node1);
-    ck_assert_int_eq(DataHub_GetNodeNum(), 1);
+    ck_assert_int_eq(DataHub_GetNodeNum(), 2); // Dummy + node1
     
     DataHub_Deinit();
 }

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
-#include "../src/DataHub.h"
+#include "../include/DataHub.h"
 
 typedef struct {
     double temperature;
