@@ -96,12 +96,26 @@
     #define Mutex_unlock(m)   pthread_mutex_unlock(m)
     #define Mutex_destroy(m)  pthread_mutex_destroy(m)
 
-    #define Rwlock_t          pthread_rwlock_t
-    #define Rwlock_init(m)    pthread_rwlock_init(m, NULL)
-    #define Rwlock_rdlock(m)  pthread_rwlock_rdlock(m)
-    #define Rwlock_wrlock(m)  pthread_rwlock_wrlock(m)
-    #define Rwlock_unlock(m)  pthread_rwlock_unlock(m)
-    #define Rwlock_destroy(m) pthread_rwlock_destroy(m)
+    // #define Rwlock_t          pthread_rwlock_t
+    // #define Rwlock_init(m)    pthread_rwlock_init(m, NULL)
+    // #define Rwlock_rdlock(m)  pthread_rwlock_rdlock(m)
+    // #define Rwlock_wrlock(m)  pthread_rwlock_wrlock(m)
+    // #define Rwlock_unlock(m)  pthread_rwlock_unlock(m)
+    // #define Rwlock_destroy(m) pthread_rwlock_destroy(m)
+    #define Rwlock_t          pthread_mutex_t
+    #define Rwlock_init(m)    pthread_mutex_init(m, NULL)
+    #define Rwlock_rdlock(m)  pthread_mutex_lock(m)
+    #define Rwlock_wrlock(m)  pthread_mutex_lock(m)
+    #define Rwlock_unlock(m)  pthread_mutex_unlock(m)
+    #define Rwlock_destroy(m) pthread_mutex_destroy(m)
+
+    #define Cond_t           pthread_cond_t
+    #define Cond_init(c)     pthread_cond_init(c, NULL)
+    #define Cond_wait(c, m)  pthread_cond_wait(c, m)
+    #define Cond_signal(c)   pthread_cond_signal(c)
+    #define Cond_broadcast(c) pthread_cond_broadcast(c)
+    #define Cond_destroy(c)  pthread_cond_destroy(c)
+
 #else
     #error "Unsupported platform or compiler. Define USE_FREERTOS or ensure you are on a POSIX system with GCC/Clang."
 #endif
@@ -118,6 +132,32 @@ struct ll_list {
     ll_node_t *tail;
     size_t     size;
 } ll_list_t;
+
+typedef \
+struct mem_queue {
+    void *buff;
+    uint32_t capacity;
+    uint32_t item_size;
+
+    struct {
+        uint32_t head;
+        uint32_t tail;
+        uint32_t count;
+        
+        Mutex_t lock;
+        Cond_t not_full;
+        Cond_t not_empty;
+
+        uint32_t max_used;
+    } priv;
+} mem_queue_t;
+
+typedef \
+__attribute__((aligned(4)))
+struct AsyncEvent {
+    DataNode_t *node_p;
+    EventCode_t event;
+} AsyncEvent_t;
 
 struct DataNodePriv {
     atomic_bool  is_inited;
@@ -136,7 +176,13 @@ struct DataHub {
     ll_list_t     node_list;
     Rwlock_t      list_lock;
     atomic_bool   is_inited;
+    mem_queue_t async_pub_queue;
 } DataHub_t;
+
+#if ASYNC_EVENT_QUEUE_STATIC
+static __attribute__((aligned(4))) \
+    uint8_t s_queue_buffer[sizeof(AsyncEvent_t) * ASYNC_EVENT_QUEUE_SIZE] = {0};
+#endif
 
 static DataHub_t s_hub = {
     .name = "GlobalDataHub",
@@ -166,19 +212,47 @@ static DataNode_t s_dummyNode = {
 
 DataNode_t * const _dummyNode = &s_dummyNode;
 
+//==============================================================================
+// Internal lock-free queue Implementation
+//==============================================================================
+
+static int mem_queue_create(mem_queue_t *q, uint32_t capacity, uint32_t item_size);
+static int mem_queue_create_static(mem_queue_t *q, void *buffer, uint32_t capacity, uint32_t item_size);
+static int mem_queue_destroy(mem_queue_t *q);
+static int mem_queue_clear(mem_queue_t *q);
+static int mem_queue_send(mem_queue_t *q, const void *item, uint32_t size, uint32_t timeout_ms);
+static int mem_queue_receive(mem_queue_t *q, void *buffer, uint32_t size, uint32_t timeout_ms);
+static uint32_t mem_queue_get_used_cnt(const mem_queue_t *q);
+static uint32_t mem_queue_get_max_used_cnt(const mem_queue_t *q);
+static uint32_t mem_queue_get_free_cnt(const mem_queue_t *q);
+static int mem_queue_is_full(const mem_queue_t *q);
+static int mem_queue_is_empty(const mem_queue_t *q);
+
 
 //==============================================================================
 // Internal Linked-List Implementation
 //==============================================================================
 
-static void ll_list_init(ll_list_t *list) {
+static void ll_list_init(ll_list_t *list);
+static int ll_list_push_back(ll_list_t *list, DataNode_t *data);
+static int ll_list_remove(ll_list_t *list, const DataNode_t *data);
+static DataNode_t* ll_list_find(ll_list_t *list, const char *name);
+static void ll_list_clear(ll_list_t *list);
+
+#define ll_list_for_each(list, node_p) \
+    for (ll_node_t *node_p = (list)->head; node_p != NULL; node_p = (node_p)->next)
+
+
+static void ll_list_init(ll_list_t *list) 
+{
     if (!list) return;
     list->head = NULL;
     list->tail = NULL;
     list->size = 0;
 }
 
-static int ll_list_push_back(ll_list_t *list, DataNode_t *data) {
+static int ll_list_push_back(ll_list_t *list, DataNode_t *data)
+{
     if (!list || !data) return -1;
     ll_node_t *node = Mem_alloc(sizeof(ll_node_t));
     if (!node) return -1;
@@ -194,7 +268,8 @@ static int ll_list_push_back(ll_list_t *list, DataNode_t *data) {
     return 0;
 }
 
-static int ll_list_remove(ll_list_t *list, const DataNode_t *data) {
+static int ll_list_remove(ll_list_t *list, const DataNode_t *data) 
+{
     if (!list || !data) return -1;
     ll_node_t **pp = &list->head;
     ll_node_t *prev = NULL;
@@ -242,8 +317,6 @@ static void ll_list_clear(ll_list_t *list)
     ll_list_init(list);
 }
 
-#define ll_list_for_each(list, node_p) \
-    for (ll_node_t *node_p = (list)->head; node_p != NULL; node_p = (node_p)->next)
 
 //==============================================================================
 // Hub API Implementation
@@ -275,10 +348,21 @@ DH_API int DataHub_Init(void)
         return err;
     }
 
+#if USE_ASYNC_EVENT
+#if ASYNC_EVENT_QUEUE_STATIC
+    mem_queue_create_static(&hub_p()->async_pub_queue, 
+        s_queue_buffer, ASYNC_EVENT_QUEUE_SIZE, sizeof(AsyncEvent_t));
+#else
+    mem_queue_create(&hub_p()->async_pub_queue, 
+        ASYNC_EVENT_QUEUE_SIZE, sizeof(AsyncEvent_t));
+#endif
+#endif
+
     return DH_OK;
 }
 
-DH_API int DataHub_Deinit(void) {
+DH_API int DataHub_Deinit(void) 
+{
     bool expected = true;
     if (!atomic_compare_exchange_strong(&hub_p()->is_inited, &expected, false)) {
         return DH_ERR_NOTINITIALIZED;
@@ -342,6 +426,10 @@ DH_API const char *DataHub_GetErrStr(int err)
 DH_API int DataHub_InitNode(DataNode_t *node_p) 
 {
     if (!node_p || node_p->name[0] == '\0') return DH_ERR_INVALID;
+    if ((node_p->conflags & CONF_CACHED) && node_p->size == 0) 
+        return DH_ERR_INVALID; // Cached nodes must have a defined size
+    if ((node_p->conflags & CONF_ASYNC) && !(node_p->conflags & CONF_CACHED))
+        return DH_ERR_NOSUPPORT; // Async nodes must be cached
 
     struct DataNodePriv* priv = node_priv(node_p);
     bool expected = false;
@@ -362,11 +450,6 @@ DH_API int DataHub_InitNode(DataNode_t *node_p)
     // Handle cache allocation if requested
     if (node_p->conflags & CONF_CACHED) 
     {
-        if (node_p->size == 0) {
-            atomic_store(&priv->is_inited, false);
-            return DH_ERR_INVALID; // Cached nodes must have a defined size
-        }
-
         priv->cache_p = Mem_alloc(node_p->size);
         if (!priv->cache_p) {
             atomic_store(&priv->is_inited, false);
@@ -583,10 +666,26 @@ static int node_publish(DataNode_t *node_p, const void *data_p, int size, int ju
     struct DataNodePriv* priv = node_priv(node_p);
 
     // update the cache first.
-    if (node_p->conflags & CONF_CACHED && priv->cache_p) {
+    if ((node_p->conflags & CONF_CACHED) && priv->cache_p) 
+    {
         Rwlock_wrlock(&priv->cache_lock);
         memcpy(priv->cache_p, data_p, node_p->size);
         Rwlock_unlock(&priv->cache_lock);
+    }
+
+    if (node_p->conflags & CONF_ASYNC) 
+    {
+        // If the node is async, we need to queue the event
+        AsyncEvent_t *event = Mem_alloc(sizeof(AsyncEvent_t));
+        if (!event) return DH_ERR_NOMEM;
+
+        event->node_p = node_p;
+        event->event = just_signal ? EVENT_PUBLISH_SIG : EVENT_PUBLISH;
+
+        Mutex_lock(&hub_p()->async_pub_queue.lock);
+        ll_list_push_back(&hub_p()->async_pub_queue.events, event);
+        Mutex_unlock(&hub_p()->async_pub_queue.lock);
+        return DH_OK;
     }
 
     // Determine the event type
@@ -680,4 +779,61 @@ DH_API int DataHub_NodeNotify(DataNode_t *node_p, const char *name, const void *
     };
     
     return SendEvent(target_node, &param);;
+}
+
+DH_API int DataHub_GetAsyncEventQueueMaxUsed(void)
+{
+    return mem_queue_get_max_used_cnt(&hub_p()->async_pub_queue);
+}
+
+DH_API int DataHub_AsyncPoll()
+{
+    AsyncEvent_t aevent = {0};
+
+    // check async publish queue
+    int has_event = 0;
+    has_event = mem_queue_receive(&hub_p()->async_pub_queue, &aevent, sizeof(AsyncEvent_t), 10);
+    if (has_event == 0) return -1;
+
+    // get queue item
+    struct DataNodePriv * const pub_priv = node_priv(aevent.node_p);
+    
+    // build EventParam_t
+    struct {void *data_p; uint32_t size;} pub_data = {0};
+
+    switch (aevent.event) 
+    {
+        case EVENT_PUBLISH:
+            pub_data.data_p = pub_priv->cache_p;
+            pub_data.size = aevent.node_p->size;
+            break;
+        case EVENT_PUBLISH_SIG:
+        default:
+            pub_data.data_p = NULL; // no data for signal
+            pub_data.size = 0; // no size for signal
+            break;
+    }
+
+    EventParam_t param = {
+        .event = aevent.event,
+        .sender = aevent.node_p,
+        .recver = NULL, // will be set in the loop
+        .data_p = pub_data.data_p, // use cache if available
+        .size = pub_data.size,
+    };
+
+    // traverse node_p->subscribers
+    // call event_cb with EVENT_PUBLISH or EVENT_PUBLISH_SIG
+    Mutex_lock(&pub_priv->subscribers_lock);
+    ll_list_for_each(&pub_priv->subscribers, sub_ll_node) 
+    {
+        const DataNode_t * const sub_node = sub_ll_node->data;
+
+        if (sub_node && sub_node->event_cb && (sub_node->event_msk & aevent.event)) 
+        {
+            param.recver = sub_node; // set the receiver
+            SendEvent(sub_node, &param);
+        }
+    }
+    Mutex_unlock(&pub_priv->subscribers_lock);
 }

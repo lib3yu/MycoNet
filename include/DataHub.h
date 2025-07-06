@@ -37,14 +37,23 @@ extern "C" {
 #define DH_ERR_SIZE_MISMATCH    (-13)
 
 //==============================================================================
+// Configuration
+//==============================================================================
+
+#define USE_ASYNC_EVENT             (1)
+#define ASYNC_EVENT_QUEUE_STATIC    (0)  // Enable static allocation for async event queue
+#define ASYNC_EVENT_QUEUE_SIZE      (100)
+
+//==============================================================================
 // Type Definitions
 //==============================================================================
 
 struct DataNode;
 
 typedef enum NodeConf {
-    CONF_NONE   = 0,
-    CONF_CACHED = 1 << 0,
+    CONF_NONE      = 0,
+    CONF_CACHED    = 1 << 0,
+    CONF_ASYNC     = 1 << 1,
 } NodeConf_t;
 
 typedef enum EventCode {
@@ -68,9 +77,9 @@ struct EventParam {
 typedef int (*EventCallback_t)(struct DataNode* node_p, EventParam_t* param);
 
 
-#define DATAHUB_PRIV_DATA_SIZE 200
+#define DATAHUB_PRIV_DATA_SIZE (184)
 typedef uint32_t DataNodePrivBase_t;
-#define DataNodePrivSiz (DATAHUB_PRIV_DATA_SIZE / sizeof(DataNodePrivBase_t))
+#define DataNodePrivSiz ((DATAHUB_PRIV_DATA_SIZE + sizeof(DataNodePrivBase_t) - 1) / sizeof(DataNodePrivBase_t))
 
 
 typedef struct DataNode {
@@ -95,6 +104,7 @@ extern DataNode_t * const _dummyNode;
 /**Hub API */
 DH_API int DataHub_Init(void);
 DH_API int DataHub_Deinit(void);
+DH_API int DataHub_AsyncEnable(bool enable);
 DH_API int DataHub_GetNodeNum(void);
 DH_API DataNode_t *DataHub_SearchNode(const char *name);
 DH_API const char *DataHub_GetErrStr(int err);
@@ -111,8 +121,11 @@ DH_API int DataHub_NodeSubscribe(DataNode_t *node_p, const char *name);
 DH_API int DataHub_NodeUnsubscribe(DataNode_t *node_p, const char *name);
 DH_API int DataHub_NodePublish(DataNode_t *node_p, const void *data_p, int size);
 DH_API int DataHub_NodePublishSignal(DataNode_t *node_p, const void *data_p, int size);
-DH_API int DataHub_NodePull(DataNode_t *node_p, const char *name, void *data_p, uint32_t size);
+DH_API int DataHub_NodePull(DataNode_t *node_p, const char *name, void *data_p, uint32_t size); // allways sync pull
 DH_API int DataHub_NodeNotify(DataNode_t *node_p, const char *name, const void *data_p, int size);
+
+DH_API int DataHub_GetAsyncEventQueueMaxUsed(void);  // get the maximum number of async events that can be queued
+DH_API int DataHub_AsyncPoll(); // call in a loop to process async publish
 
 #ifdef __cplusplus
 }
