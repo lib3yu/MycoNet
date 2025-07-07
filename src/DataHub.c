@@ -556,6 +556,12 @@ DH_API int DataHub_NodeUnsubscribe(DataNode_t *node_p, const char *name)
     return ret;
 }
 
+static void update_cache(DataNode_t *node_p, const void *data_p, int size)
+{
+    Rwlock_wrlock(&node_priv(node_p)->cache_lock);
+    memcpy(node_priv(node_p)->cache_p, data_p, size);
+    Rwlock_unlock(&node_priv(node_p)->cache_lock);
+}
 
 static int SendEvent(struct DataNode* node_p, EventParam_t* param)
 {
@@ -565,15 +571,11 @@ static int SendEvent(struct DataNode* node_p, EventParam_t* param)
     // check if CONF_CACHED is enabled
     if (param->event == EVENT_PULL)
     {
-        bool route2cache = (node_p->conflags & CONF_CACHED) && node_priv(node_p)->cache_p;
+        struct DataNodePriv * const priv = node_priv(node_p);
 
-        if (route2cache)
-        {
+        if ((node_p->conflags & CONF_CACHED) && priv->cache_p) {
             if (!param->data_p || param->size != node_p->size) return DH_ERR_SIZE_MISMATCH;
-            
-            Rwlock_rdlock(&node_priv(node_p)->cache_lock);
-            memcpy(param->data_p, node_priv(node_p)->cache_p, node_p->size);
-            Rwlock_unlock(&node_priv(node_p)->cache_lock);
+            update_cache(node_p, param->data_p, param->size);
             return DH_OK;
         }
     }
@@ -584,13 +586,11 @@ static int SendEvent(struct DataNode* node_p, EventParam_t* param)
 
 static int node_publish(DataNode_t *node_p, const void *data_p, int size, int just_signal)
 {
-    struct DataNodePriv* priv = node_priv(node_p);
+    struct DataNodePriv * const priv = node_priv(node_p);
 
     // update the cache first.
     if (node_p->conflags & CONF_CACHED && priv->cache_p) {
-        Rwlock_wrlock(&priv->cache_lock);
-        memcpy(priv->cache_p, data_p, node_p->size);
-        Rwlock_unlock(&priv->cache_lock);
+        update_cache(node_p, data_p, size);
     }
 
     // Determine the event type
