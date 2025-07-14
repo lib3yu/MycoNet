@@ -55,11 +55,15 @@ typedef enum EventCode {
     EVENT_PUBLISH_SIG = 1 << 3,
 } EventCode_t;
 
+typedef uint8_t  EventMask_t;
+typedef uint16_t InfoSize_t;
+typedef uint16_t CmdSize_t;   
+
 typedef 
 struct EventParam {
     EventCode_t event;
-    struct DataNode* sender;
-    struct DataNode* recver;
+    struct DataNode *sender;
+    struct DataNode *recver;
     void *data_p;
     uint32_t size;
 } EventParam_t;
@@ -69,7 +73,7 @@ typedef int (*EventCallback_t)(struct DataNode* node_p, EventParam_t* param);
 
 
 #define DATAHUB_PRIV_DATA_SIZE 200
-typedef uint32_t DataNodePrivBase_t;
+typedef uint32_t DataNodePrivBase_t;  // 32-bit aligned
 #define DataNodePrivSiz (DATAHUB_PRIV_DATA_SIZE / sizeof(DataNodePrivBase_t))
 
 
@@ -77,13 +81,14 @@ typedef struct DataNode {
     char               name[64];
     uint32_t           size;
     NodeConf_t         conflags;
-    uint32_t           event_msk;
+    EventMask_t        event_msk;
     EventCallback_t    event_cb;
     void*              user_data;
     DataNodePrivBase_t priv[DataNodePrivSiz];
 } DataNode_t;
 
-/** only support pull/notify other nodes
+/** 
+ * only support pull/notify other nodes
  * can not publish/publish_signal to other nodes
  * can not subscribe to other nodes */
 extern DataNode_t * const _dummyNode;

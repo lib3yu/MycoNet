@@ -9,83 +9,6 @@
 // Platform Abstraction Layer (PAL) for OS primitives
 //==============================================================================
 
-// Define USE_FREERTOS in your project/makefile to enable this section
-#if defined(USE_FREERTOS)
-    #include "FreeRTOS.h"
-    #include "task.h"
-    #include "semphr.h"
-
-    #define Mem_alloc(size) pvPortMalloc(size)
-    #define Mem_free(ptr)   vPortFree(ptr)
-
-    // --- FreeRTOS Mutex Wrapper ---
-    #define Mutex_t         SemaphoreHandle_t
-    #define Mutex_init(m)   (*(m) = xSemaphoreCreateMutex())
-    #define Mutex_lock(m)   xSemaphoreTake(*(m), portMAX_DELAY)
-    #define Mutex_unlock(m) xSemaphoreGive(*(m))
-    #define Mutex_destroy(m) vSemaphoreDelete(*(m))
-
-    // --- FreeRTOS Read-Write Lock Implementation ---
-    // Implemented using a mutex for write lock, a semaphore for writer preference,
-    // and a counter for readers.
-    typedef struct {
-        SemaphoreHandle_t write_mutex;    // Exclusive write lock
-        SemaphoreHandle_t read_sem;       // Lock for read_count manipulation
-        volatile int      read_count;     // Number of active readers
-    } Rwlock_t;
-
-    static int Rwlock_init(Rwlock_t *rwlock) {
-        if (!rwlock) return -1;
-        rwlock->write_mutex = xSemaphoreCreateMutex();
-        if (rwlock->write_mutex == NULL) return -1;
-        rwlock->read_sem = xSemaphoreCreateMutex();
-        if (rwlock->read_sem == NULL) {
-            vSemaphoreDelete(rwlock->write_mutex);
-            return -1;
-        }
-        rwlock->read_count = 0;
-        return 0;
-    }
-
-    static void Rwlock_destroy(Rwlock_t *rwlock) {
-        if (!rwlock) return;
-        vSemaphoreDelete(rwlock->write_mutex);
-        vSemaphoreDelete(rwlock->read_sem);
-    }
-
-    static void Rwlock_rdlock(Rwlock_t *rwlock) {
-        xSemaphoreTake(rwlock->read_sem, portMAX_DELAY);
-        rwlock->read_count++;
-        if (rwlock->read_count == 1) {
-            // First reader locks out writers
-            xSemaphoreTake(rwlock->write_mutex, portMAX_DELAY);
-        }
-        xSemaphoreGive(rwlock->read_sem);
-    }
-
-    static void Rwlock_wrlock(Rwlock_t *rwlock) {
-        xSemaphoreTake(rwlock->write_mutex, portMAX_DELAY);
-    }
-
-    static void Rwlock_unlock(Rwlock_t *rwlock) {
-        // This unlock is for both read and write locks.
-        // A writer just gives the mutex. A reader must check the count.
-        if (xSemaphoreGetMutexHolder(rwlock->write_mutex) == xTaskGetCurrentTaskHandle() && uxSemaphoreGetCount(rwlock->write_mutex) == 0) {
-            // This task holds the write lock
-            xSemaphoreGive(rwlock->write_mutex);
-        } else {
-            // This task holds a read lock
-            xSemaphoreTake(rwlock->read_sem, portMAX_DELAY);
-            rwlock->read_count--;
-            if (rwlock->read_count == 0) {
-                // Last reader unlocks for writers
-                xSemaphoreGive(rwlock->write_mutex);
-            }
-            xSemaphoreGive(rwlock->read_sem);
-        }
-    }
-
-#elif defined(__GNUC__) && !defined(USE_FREERTOS) // POSIX (Linux, macOS)
     #include <pthread.h>
     #define Mem_alloc(size)   malloc(size)
     #define Mem_free(ptr)     free(ptr)
@@ -96,15 +19,23 @@
     #define Mutex_unlock(m)   pthread_mutex_unlock(m)
     #define Mutex_destroy(m)  pthread_mutex_destroy(m)
 
-    #define Rwlock_t          pthread_rwlock_t
-    #define Rwlock_init(m)    pthread_rwlock_init(m, NULL)
-    #define Rwlock_rdlock(m)  pthread_rwlock_rdlock(m)
-    #define Rwlock_wrlock(m)  pthread_rwlock_wrlock(m)
-    #define Rwlock_unlock(m)  pthread_rwlock_unlock(m)
-    #define Rwlock_destroy(m) pthread_rwlock_destroy(m)
-#else
-    #error "Unsupported platform or compiler. Define USE_FREERTOS or ensure you are on a POSIX system with GCC/Clang."
-#endif
+#define Rwlock_t            pthread_mutex_t
+#define Rwlock_init(m)      pthread_mutex_init(m, NULL)
+#define Rwlock_rdlock(m)    pthread_mutex_lock(m)
+#define Rwlock_rdunlock(m)  pthread_mutex_unlock(m)
+#define Rwlock_wrlock(m)    pthread_mutex_lock(m)
+#define Rwlock_wrunlock(m)  pthread_mutex_unlock(m)
+#define Rwlock_destroy(m)   pthread_mutex_destroy(m)
+
+// #define Rwlock_t          pthread_rwlock_t
+// #define Rwlock_init(m)    pthread_rwlock_init(m, NULL)
+// #define Rwlock_rdlock(m)  pthread_rwlock_rdlock(m)
+// #define Rwlock_rdunlock(m)  pthread_rwlock_unlock(m)
+// #define Rwlock_wrlock(m)  pthread_rwlock_wrlock(m)
+// #define Rwlock_wrunlock(m)  pthread_rwlock_unlock(m)
+// #define Rwlock_destroy(m) pthread_rwlock_destroy(m)
+
+
 
 typedef \
 struct ll_node {
@@ -139,7 +70,7 @@ struct DataHub {
 } DataHub_t;
 
 static DataHub_t s_hub = {
-    .name = "GlobalDataHub",
+    .name = "__DataHub__",
     .is_inited = ATOMIC_VAR_INIT(false),
 };
 
@@ -156,7 +87,7 @@ _Static_assert(sizeof(struct DataNodePriv) <= DATAHUB_PRIV_DATA_SIZE,
 //==============================================================================
 
 static DataNode_t s_dummyNode = {
-    .name = "_DummyNode_",
+    .name = "__DummyNode__",
     .conflags = CONF_NONE,
     .event_msk = EVENT_NONE,
     .event_cb = NULL, // No event callback
@@ -171,12 +102,12 @@ DataNode_t * const _dummyNode = &s_dummyNode;
 // Internal Linked-List Implementation
 //==============================================================================
 
-static void ll_list_init(ll_list_t *list) 
+static int ll_list_init(ll_list_t *list) 
 {
-    if (!list) return;
-    list->head = NULL;
-    list->tail = NULL;
+    if (!list) return -1;
+    list->head = list->tail = NULL;
     list->size = 0;
+    return 0;
 }
 
 static int ll_list_push_back(ll_list_t *list, DataNode_t *data) 
@@ -219,7 +150,7 @@ static int ll_list_remove(ll_list_t *list, const DataNode_t *data)
     return -1;
 }
 
-static DataNode_t* ll_list_find(ll_list_t *list, const char *name) 
+static DataNode_t *ll_list_find(ll_list_t *list, const char *name) 
 {
     if (!list || !name) return NULL;
 
@@ -293,7 +224,7 @@ DH_API int DataHub_Deinit(void)
         DataHub_DeinitNode(node->data);
     }
     ll_list_clear(&hub_p()->node_list);
-    Rwlock_unlock(&hub_p()->list_lock);
+    Rwlock_wrunlock(&hub_p()->list_lock);
     Rwlock_destroy(&hub_p()->list_lock);
     return DH_OK;
 }
@@ -304,7 +235,7 @@ DH_API int DataHub_GetNodeNum(void)
 
     Rwlock_rdlock(&hub_p()->list_lock);
     int size = hub_p()->node_list.size;
-    Rwlock_unlock(&hub_p()->list_lock);
+    Rwlock_rdunlock(&hub_p()->list_lock);
     return size;
 }
 
@@ -314,7 +245,7 @@ DH_API DataNode_t *DataHub_SearchNode(const char *name)
 
     Rwlock_rdlock(&hub_p()->list_lock);
     DataNode_t *result = ll_list_find(&hub_p()->node_list, name);
-    Rwlock_unlock(&hub_p()->list_lock);
+    Rwlock_rdunlock(&hub_p()->list_lock);
     return result;
 }
 
@@ -421,12 +352,12 @@ DH_API int DataHub_PushBackNode(DataNode_t *node_p)
 
     Rwlock_wrlock(&hub_p()->list_lock);
     if (ll_list_find(&hub_p()->node_list, node_p->name)) {
-        Rwlock_unlock(&hub_p()->list_lock);
+        Rwlock_wrunlock(&hub_p()->list_lock);
         atomic_store(&node_priv(node_p)->is_registered, false);
         return DH_ERR_EXIST;
     }
     int ret = ll_list_push_back(&hub_p()->node_list, node_p);
-    Rwlock_unlock(&hub_p()->list_lock);
+    Rwlock_wrunlock(&hub_p()->list_lock);
 
     if (ret != 0) {
         atomic_store(&node_priv(node_p)->is_registered, false);
@@ -446,7 +377,7 @@ DH_API int DataHub_RemoveNode(DataNode_t *node_p)
 
     Rwlock_wrlock(&hub_p()->list_lock);
     int ret = ll_list_remove(&hub_p()->node_list, node_p);
-    Rwlock_unlock(&hub_p()->list_lock);
+    Rwlock_wrunlock(&hub_p()->list_lock);
 
     return (ret == 0) ? DH_OK : DH_ERR_NOTFOUND;
 }
@@ -481,8 +412,8 @@ DH_API int DataHub_NodeSubscribe(DataNode_t *node_p, const char *name)
     if (!atomic_load(&hub_p()->is_inited)) return DH_ERR_NOTINITIALIZED;
     if (!atomic_load(&node_priv(node_p)->is_registered)) return DH_ERR_NOTFOUND;
 
-    // Cannot subscribe to nodes without publish/publish_signal events
-    EventCode_t check_mask = node_p->event_msk;
+    /* avoid setting up a useless subscription */
+    const EventCode_t check_mask = node_p->event_msk;
     if ((check_mask & (EVENT_PUBLISH | EVENT_PUBLISH_SIG)) == 0) {
         return DH_ERR_NOSUPPORT; 
     }
@@ -505,17 +436,16 @@ DH_API int DataHub_NodeSubscribe(DataNode_t *node_p, const char *name)
     Mutex_lock(lock2);
 
     int ret = DH_OK;
-    if (ll_list_find(&node_priv(node_p)->subscriptions, pub_node->name)) 
-    {
-        ret = DH_ERR_EXIST;
-    } 
-    else 
+    if (!ll_list_find(&node_priv(node_p)->subscriptions, pub_node->name)) 
     {
         if (ll_list_push_back(&node_priv(node_p)->subscriptions, pub_node) == 0) {
             ll_list_push_back(&node_priv(pub_node)->subscribers, node_p);
         } else {
             ret = DH_ERR_NOMEM;
         }
+    } 
+    else {
+        ret = DH_ERR_EXIST;
     }
 
     Mutex_unlock(lock2);
@@ -530,7 +460,7 @@ DH_API int DataHub_NodeUnsubscribe(DataNode_t *node_p, const char *name)
     if (!atomic_load(&node_priv(node_p)->is_registered)) return DH_ERR_NOTFOUND;
 
     DataNode_t *pub_node = DataHub_SearchNode(name);
-    if (!pub_node) return DH_ERR_NOTFOUND;
+    if (pub_node == NULL) return DH_ERR_NOTFOUND;
 
     Mutex_t *lock1, *lock2;
     if ((uintptr_t)node_p < (uintptr_t)pub_node) {
@@ -556,12 +486,22 @@ DH_API int DataHub_NodeUnsubscribe(DataNode_t *node_p, const char *name)
     return ret;
 }
 
-static void update_cache(DataNode_t *node_p, const void *data_p, int size)
+static inline 
+void copy_from_cache(DataNode_t *node_p, void *data_p, int size)
+{
+    Rwlock_rdlock(&node_priv(node_p)->cache_lock);
+    memcpy(data_p, node_priv(node_p)->cache_p, size);
+    Rwlock_rdunlock(&node_priv(node_p)->cache_lock);
+}
+
+static inline 
+void update_to_cache(DataNode_t *node_p, const void *data_p, int size)
 {
     Rwlock_wrlock(&node_priv(node_p)->cache_lock);
     memcpy(node_priv(node_p)->cache_p, data_p, size);
-    Rwlock_unlock(&node_priv(node_p)->cache_lock);
+    Rwlock_wrunlock(&node_priv(node_p)->cache_lock);
 }
+
 
 static int SendEvent(struct DataNode* node_p, EventParam_t* param)
 {
@@ -573,9 +513,11 @@ static int SendEvent(struct DataNode* node_p, EventParam_t* param)
     {
         struct DataNodePriv * const priv = node_priv(node_p);
 
-        if ((node_p->conflags & CONF_CACHED) && priv->cache_p) {
-            if (!param->data_p || param->size != node_p->size) return DH_ERR_SIZE_MISMATCH;
-            update_cache(node_p, param->data_p, param->size);
+        if ((node_p->conflags & CONF_CACHED) && priv->cache_p) 
+        {
+            if (!param->data_p || param->size != node_p->size) 
+                return DH_ERR_SIZE_MISMATCH;
+            copy_from_cache(node_p, param->data_p, param->size);
             return DH_OK;
         }
     }
@@ -589,8 +531,8 @@ static int node_publish(DataNode_t *node_p, const void *data_p, int size, int ju
     struct DataNodePriv * const priv = node_priv(node_p);
 
     // update the cache first.
-    if (node_p->conflags & CONF_CACHED && priv->cache_p) {
-        update_cache(node_p, data_p, size);
+    if ((node_p->conflags & CONF_CACHED) && priv->cache_p) {
+        update_to_cache(node_p, data_p, size);
     }
 
     // Determine the event type
@@ -603,9 +545,12 @@ static int node_publish(DataNode_t *node_p, const void *data_p, int size, int ju
     ll_list_for_each(&priv->subscribers, sub_ll_node) 
     {
         DataNode_t* sub_node = sub_ll_node->data;
+        if (sub_node == NULL) continue;
 
-        if (sub_node && sub_node->event_cb && (sub_node->event_msk & event_type)) 
-        {
+        const int supported = sub_node->event_cb && \
+                            (sub_node->event_msk & event_type);
+        if (!supported) continue;
+
             EventParam_t param = {
                 .event = event_type,
                 .sender = node_p,
@@ -615,7 +560,6 @@ static int node_publish(DataNode_t *node_p, const void *data_p, int size, int ju
             };
 
             SendEvent(sub_node, &param);
-        }
     }
     Mutex_unlock(&priv->subscribers_lock);
 
