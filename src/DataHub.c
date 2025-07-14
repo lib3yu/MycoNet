@@ -168,6 +168,9 @@ struct DataNodePriv {
     Mutex_t      subscriptions_lock;
     void*        cache_p;
     Rwlock_t     cache_lock;
+#if DH_USE_STATIC_NODE_LIST
+    ll_node_t    static_node_self;
+#endif
 };
 
 typedef \
@@ -254,7 +257,11 @@ static void ll_list_init(ll_list_t *list)
 static int ll_list_push_back(ll_list_t *list, DataNode_t *data)
 {
     if (!list || !data) return -1;
+#if DH_USE_STATIC_NODE_LIST
+    ll_node_t *node = &node_priv(data)->static_node_self;
+#else
     ll_node_t *node = Mem_alloc(sizeof(ll_node_t));
+#endif
     if (!node) return -1;
     node->data = data;
     node->next = NULL;
@@ -281,7 +288,11 @@ static int ll_list_remove(ll_list_t *list, const DataNode_t *data)
             if (current == list->tail) {
                 list->tail = prev;
             }
+#if DH_USE_STATIC_NODE_LIST
+            // Static node list doesn't need to free nodes
+#else
             Mem_free(current);
+#endif
             list->size--;
             return 0;
         }
@@ -418,6 +429,17 @@ DH_API const char *DataHub_GetErrStr(int err)
         default:                    return "Unknown Error";
     }
 }
+
+// static int validate_op_hub(void) {
+//     if (!atomic_load(&hub_p()->is_inited)) return DH_ERR_NOTINITIALIZED;
+//     return DH_OK;
+// }
+
+// static int validate_op_node(const DataNode_t *node_p) {
+//     if (node_p == NULL || node_p->name[0] == '\0') return DH_ERR_INVALID;
+//     if (!atomic_load(&node_priv(node_p)->is_inited)) return DH_ERR_NOTINITIALIZED;
+//     return DH_OK;
+// }
 
 //==============================================================================
 // Node Tool API Implementation
@@ -698,9 +720,12 @@ static int node_publish(DataNode_t *node_p, const void *data_p, int size, int ju
     ll_list_for_each(&priv->subscribers, sub_ll_node) 
     {
         DataNode_t* sub_node = sub_ll_node->data;
+        if (sub_node == NULL) continue;
 
-        if (sub_node && sub_node->event_cb && (sub_node->event_msk & event_type)) 
-        {
+        const int supported = sub_node->event_cb && \
+                            (sub_node->event_msk & event_type);
+        if (!supported) continue;
+
             EventParam_t param = {
                 .event = event_type,
                 .sender = node_p,
@@ -710,7 +735,6 @@ static int node_publish(DataNode_t *node_p, const void *data_p, int size, int ju
             };
 
             SendEvent(sub_node, &param);
-        }
     }
     Mutex_unlock(&priv->subscribers_lock);
 

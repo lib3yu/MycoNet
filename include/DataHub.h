@@ -16,6 +16,9 @@ extern "C" {
 #define NODE_NAME(xx) (#xx)
 
 #define DH_API
+#define DH_TOOL_API
+
+#define DH_USE_STATIC_NODE_LIST (0)
 
 //==============================================================================
 // Error Codes
@@ -126,6 +129,10 @@ DH_API int DataHub_NodeNotify(DataNode_t *node_p, const char *name, const void *
 
 DH_API int DataHub_GetAsyncEventQueueMaxUsed(void);  // get the maximum number of async events that can be queued
 DH_API int DataHub_AsyncPoll(); // call in a loop to process async publish
+
+DH_TOOL_API int NodeTool_CheckEventSender(EventParam_t *param, const char *name);
+DH_TOOL_API int NodeTool_CheckEventRecver(EventParam_t *param, const char *name);
+
 
 #ifdef __cplusplus
 }
