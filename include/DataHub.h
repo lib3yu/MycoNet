@@ -62,8 +62,6 @@ typedef enum EventCode {
 } EventCode_t;
 
 typedef uint8_t  EventMask_t;
-typedef uint16_t InfoSize_t;
-typedef uint16_t CmdSize_t;   
 
 typedef 
 struct EventParam {
