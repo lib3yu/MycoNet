@@ -15,6 +15,8 @@ extern "C" {
 
 #define NODE_NAME(xx) (#xx)
 
+#define DH_NODE_NAME_MAX_LEN 64
+
 #define DH_API
 
 //==============================================================================
@@ -79,7 +81,7 @@ typedef uint32_t DataNodePrivBase_t;  // 32-bit aligned
 
 
 typedef struct DataNode {
-    char               name[64];
+    char               name[DH_NODE_NAME_MAX_LEN];
     uint32_t           size;
     NodeConf_t         conflags;
     EventMask_t        event_msk;

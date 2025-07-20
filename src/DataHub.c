@@ -84,7 +84,7 @@ struct DataNodePriv {
 
 typedef \
 struct DataHub {
-    const char*   name;
+    char          name[DH_NODE_NAME_MAX_LEN];
     ll_list_t     node_list;
     Rwlock_t      list_lock;
     atomic_bool   is_inited;
