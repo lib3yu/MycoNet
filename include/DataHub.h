@@ -17,6 +17,9 @@ extern "C" {
 
 #define DH_NODE_NAME_MAX_LEN 64
 
+// enable static node list
+#define DH_STATIC_NODE_LIST_ENABLE 1
+
 // restrict notify size check to avoid buffer overflow
 #define DH_RESTRICT_NOTIFY_SIZE_CHECK_ENABLE 1
 
