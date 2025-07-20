@@ -79,8 +79,10 @@ struct DataNodePriv {
     Mutex_t      subscribers_lock;
     ll_list_t    subscriptions;
     Mutex_t      subscriptions_lock;
+#if DH_CACHE_SUPPORT_ENABLE
     void*        cache_p;
     Rwlock_t     cache_lock;
+#endif
 };
 
 typedef \
@@ -352,6 +354,8 @@ DH_API int DataHub_InitNode(DataNode_t *node_p)
     ll_list_init(&priv->subscriptions);
     Mutex_init(&priv->subscribers_lock);
     Mutex_init(&priv->subscriptions_lock);
+
+#if DH_CACHE_SUPPORT_ENABLE
     Rwlock_init(&priv->cache_lock);
     priv->cache_p = NULL;
 
@@ -370,6 +374,12 @@ DH_API int DataHub_InitNode(DataNode_t *node_p)
         }
         memset(priv->cache_p, 0, node_p->size);
     }
+#else 
+    if (node_p->conflags & CONF_CACHED) {
+        atomic_store(&priv->is_inited, false);
+        return DH_ERR_NOSUPPORT; // Cached nodes not supported
+    }
+#endif
 
     return DH_OK;
 }
@@ -386,14 +396,17 @@ DH_API int DataHub_DeinitNode(DataNode_t *node_p)
     if (atomic_load(&priv->is_registered)) {
         DataHub_RemoveNode(node_p);
     }
-    
+
+#if DH_CACHE_SUPPORT_ENABLE
     if (priv->cache_p) {
         Mem_free(priv->cache_p);
         priv->cache_p = NULL;
     }
+    Rwlock_destroy(&priv->cache_lock);
+#endif
+
     Mutex_destroy(&priv->subscribers_lock);
     Mutex_destroy(&priv->subscriptions_lock);
-    Rwlock_destroy(&priv->cache_lock);
     ll_list_clear(&priv->subscribers);
     ll_list_clear(&priv->subscriptions);
     
@@ -553,6 +566,7 @@ DH_API int DataHub_NodeUnsubscribe(DataNode_t *node_p, const char *name)
     return ret;
 }
 
+#if DH_CACHE_SUPPORT_ENABLE
 static inline 
 void copy_from_cache(DataNode_t *node_p, void *data_p, int size)
 {
@@ -568,7 +582,7 @@ void update_to_cache(DataNode_t *node_p, const void *data_p, int size)
     memcpy(node_priv(node_p)->cache_p, data_p, size);
     Rwlock_wrunlock(&node_priv(node_p)->cache_lock);
 }
-
+#endif
 
 static int SendEvent(struct DataNode* node_p, EventParam_t* param)
 {
@@ -591,6 +605,7 @@ static int SendEvent(struct DataNode* node_p, EventParam_t* param)
 
 #endif
 
+#if DH_CACHE_SUPPORT_ENABLE
     // check if CONF_CACHED is enabled
     if (param->event == EVENT_PULL) {
         struct DataNodePriv * const priv = node_priv(node_p);
@@ -600,6 +615,7 @@ static int SendEvent(struct DataNode* node_p, EventParam_t* param)
             return DH_OK;
         }
     }
+#endif
 
     if (!node_p->event_cb) return DH_ERR_FAIL;
     return node_p->event_cb(node_p, param);
@@ -609,10 +625,12 @@ static int node_publish(DataNode_t *node_p, const void *data_p, int size, int ju
 {
     struct DataNodePriv * const priv = node_priv(node_p);
 
+#if DH_CACHE_SUPPORT_ENABLE
     // update the cache first.
     if ((node_p->conflags & CONF_CACHED) && priv->cache_p) {
         update_to_cache(node_p, data_p, size);
     }
+#endif
 
     // Determine the event type
     void *data_p_cast = just_signal ? NULL : (void*)data_p;

@@ -17,6 +17,9 @@ extern "C" {
 
 #define DH_NODE_NAME_MAX_LEN 64
 
+// enable cache support
+#define DH_CACHE_SUPPORT_ENABLE 1
+
 // restrict notify size check to avoid buffer overflow
 #define DH_RESTRICT_NOTIFY_SIZE_CHECK_ENABLE 1
 
