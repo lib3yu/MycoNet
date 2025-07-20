@@ -571,17 +571,30 @@ void update_to_cache(DataNode_t *node_p, const void *data_p, int size)
 
 static int SendEvent(struct DataNode* node_p, EventParam_t* param)
 {
-    if (!(node_p->event_msk & param->event)) return DH_ERR_NOSUPPORT;
-    
+#if DH_NODE_COMMUNICATION_LOG_ENABLE
+    static const char *_event_str[] = {
+        "EVENT_NONE",
+        "EVENT_PUBLISH",
+        "EVENT_PULL",
+        "EVENT_NOTIFY",
+        "EVENT_PUBLISH_SIG",
+    };
+
+    DH_NODE_COMM_LOG(
+        "Comm Event Flow: sender=%s --<event:%s>--> recver=%s, size=%d", 
+        param->sender->name, 
+        _event_str[param->event], 
+        param->recver->name, 
+        param->size
+    );
+
+#endif
+
     // check if CONF_CACHED is enabled
-    if (param->event == EVENT_PULL)
-    {
+    if (param->event == EVENT_PULL) {
         struct DataNodePriv * const priv = node_priv(node_p);
 
-        if ((node_p->conflags & CONF_CACHED) && priv->cache_p) 
-        {
-            if (!param->data_p || param->size != node_p->size) 
-                return DH_ERR_SIZE_MISMATCH;
+        if ((node_p->conflags & CONF_CACHED) && priv->cache_p) {
             copy_from_cache(node_p, param->data_p, param->size);
             return DH_OK;
         }
@@ -616,15 +629,15 @@ static int node_publish(DataNode_t *node_p, const void *data_p, int size, int ju
                             (sub_node->event_msk & event_type);
         if (!supported) continue;
 
-            EventParam_t param = {
-                .event = event_type,
-                .sender = node_p,
-                .recver = sub_node,
-                .data_p = data_p_cast,
-                .size = size_cast,
-            };
+        EventParam_t param = {
+            .event = event_type,
+            .sender = node_p,
+            .recver = sub_node,
+            .data_p = data_p_cast,
+            .size = size_cast,
+        };
 
-            SendEvent(sub_node, &param);
+        SendEvent(sub_node, &param);
     }
     Mutex_unlock(&priv->subscribers_lock);
 
@@ -662,7 +675,7 @@ DH_API int DataHub_NodePull(DataNode_t *node_p, const char *name, void *data_p, 
 
     DataNode_t *pub_node = DataHub_SearchNode(name);
     if (!pub_node) return DH_ERR_NOTFOUND;
-    if (pub_node->size != 0 && pub_node->size != size) return DH_ERR_SIZE_MISMATCH;
+    if (pub_node->size != size) return DH_ERR_SIZE_MISMATCH;
 
     // check if the target node supports the PULL event
     if (!(pub_node->event_msk & EVENT_PULL)) {
@@ -692,6 +705,11 @@ DH_API int DataHub_NodeNotify(DataNode_t *node_p, const char *name, const void *
 #if DH_RESTRICT_NOTIFY_SIZE_CHECK_ENABLE
     if (size != target_node->notify_size) return DH_ERR_SIZE_MISMATCH;
 #endif
+
+    // check if the target node supports the NOTIFY event
+    if (!(target_node->event_msk & EVENT_NOTIFY)) {
+        return DH_ERR_NOSUPPORT;
+    }
 
     EventParam_t param = {
         .event = EVENT_NOTIFY,
