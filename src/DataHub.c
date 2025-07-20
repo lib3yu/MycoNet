@@ -81,9 +81,6 @@ struct DataNodePriv {
     Mutex_t      subscriptions_lock;
     void*        cache_p;
     Rwlock_t     cache_lock;
-#if DH_STATIC_NODE_LIST_ENABLE
-    ll_node_t    static_node_self;
-#endif
 };
 
 typedef \
@@ -138,12 +135,8 @@ static int ll_list_init(ll_list_t *list)
 static int ll_list_push_back(ll_list_t *list, DataNode_t *data) 
 {
     if (!list || !data) return -1;
-#if DH_STATIC_NODE_LIST_ENABLE
-    ll_node_t *node = &node_priv(data)->static_node_self;
-#else
     ll_node_t *node = Mem_alloc(sizeof(ll_node_t));
     if (!node) return -1;
-#endif
     node->data = data;
     node->next = NULL;
     if (list->tail) {
@@ -169,11 +162,7 @@ static int ll_list_remove(ll_list_t *list, const DataNode_t *data)
             if (current == list->tail) {
                 list->tail = prev;
             }
-#if DH_STATIC_NODE_LIST_ENABLE
-            memset(current, 0, sizeof(ll_node_t));
-#else
             Mem_free(current);
-#endif
             list->size--;
             return 0;
         }
@@ -203,11 +192,7 @@ static void ll_list_clear(ll_list_t *list)
     ll_node_t *node = list->head;
     while (node) {
         ll_node_t *next = node->next;
-#if DH_STATIC_NODE_LIST_ENABLE
-        memset(node, 0, sizeof(ll_node_t));
-#else
         Mem_free(node);
-#endif
         node = next;
     }
     ll_list_init(list);
