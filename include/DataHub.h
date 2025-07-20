@@ -18,7 +18,7 @@ extern "C" {
 #define DH_NODE_NAME_MAX_LEN 64
 
 // enable static node list
-#define DH_STATIC_NODE_LIST_ENABLE 1
+#define DH_STATIC_NODE_LIST_ENABLE 0
 
 // restrict notify size check to avoid buffer overflow
 #define DH_RESTRICT_NOTIFY_SIZE_CHECK_ENABLE 1
@@ -87,8 +87,8 @@ struct EventParam {
 typedef int (*EventCallback_t)(struct DataNode* node_p, EventParam_t* param);
 
 
-#define DATAHUB_PRIV_DATA_SIZE 200
 typedef uint32_t DataNodePrivBase_t;  // 32-bit aligned
+#define DATAHUB_PRIV_DATA_SIZE (sizeof(DataNodePrivBase_t) * 52)
 #define DataNodePrivSiz (DATAHUB_PRIV_DATA_SIZE / sizeof(DataNodePrivBase_t))
 
 
