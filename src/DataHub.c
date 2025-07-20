@@ -30,15 +30,15 @@
 // Platform Abstraction Layer (PAL) for OS primitives
 //==============================================================================
 
-    #include <pthread.h>
-    #define Mem_alloc(size)   malloc(size)
-    #define Mem_free(ptr)     free(ptr)
+#include <pthread.h>
+#define Mem_alloc(size)   malloc(size)
+#define Mem_free(ptr)     free(ptr)
 
-    #define Mutex_t           pthread_mutex_t
-    #define Mutex_init(m)     pthread_mutex_init(m, NULL)
-    #define Mutex_lock(m)     pthread_mutex_lock(m)
-    #define Mutex_unlock(m)   pthread_mutex_unlock(m)
-    #define Mutex_destroy(m)  pthread_mutex_destroy(m)
+#define Mutex_t           pthread_mutex_t
+#define Mutex_init(m)     pthread_mutex_init(m, NULL)
+#define Mutex_lock(m)     pthread_mutex_lock(m)
+#define Mutex_unlock(m)   pthread_mutex_unlock(m)
+#define Mutex_destroy(m)  pthread_mutex_destroy(m)
 
 #define Rwlock_t            pthread_mutex_t
 #define Rwlock_init(m)      pthread_mutex_init(m, NULL)
