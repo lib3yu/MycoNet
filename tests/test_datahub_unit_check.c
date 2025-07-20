@@ -45,7 +45,10 @@ DataNode_t node1 = {
     .size = sizeof(float),
     .conflags = CONF_CACHED,
     .event_msk = EVENT_PUBLISH | EVENT_PULL | EVENT_NOTIFY,
-    .event_cb = test_callback
+    .event_cb = test_callback,
+#if DH_RESTRICT_NOTIFY_SIZE_CHECK_ENABLE
+    .notify_size = sizeof(int)
+#endif
 };
 
 DataNode_t node2 = {
@@ -233,7 +236,7 @@ START_TEST(test_error_handling) {
     ck_assert_int_eq(DataHub_GetNodeNum(), DH_ERR_NOTINITIALIZED);
     ck_assert_ptr_eq(DataHub_SearchNode("test"), NULL);
     // Invalid parameter testing
-    ck_assert_int_eq(DataHub_InitNode(NULL), DH_ERR_INVALID);
+    ck_assert_int_eq(DataHub_InitNode(NULL), DH_ERR_NULL_POINTER);
     ck_assert_int_eq(DataHub_NodePublish(NULL, NULL, 0), DH_ERR_INVALID);
     
     // Unsupported platform testing
