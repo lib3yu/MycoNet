@@ -689,6 +689,10 @@ DH_API int DataHub_NodeNotify(DataNode_t *node_p, const char *name, const void *
     DataNode_t *target_node = DataHub_SearchNode(name);
     if (!target_node) return DH_ERR_NOTFOUND;
 
+#if DH_RESTRICT_NOTIFY_SIZE_CHECK_ENABLE
+    if (size != target_node->notify_size) return DH_ERR_SIZE_MISMATCH;
+#endif
+
     EventParam_t param = {
         .event = EVENT_NOTIFY,
         .sender = node_p,

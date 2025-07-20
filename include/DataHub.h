@@ -17,6 +17,9 @@ extern "C" {
 
 #define DH_NODE_NAME_MAX_LEN 64
 
+// restrict notify size check to avoid buffer overflow
+#define DH_RESTRICT_NOTIFY_SIZE_CHECK_ENABLE 1
+
 #define DH_API
 
 //==============================================================================
@@ -87,6 +90,9 @@ typedef struct DataNode {
     EventMask_t        event_msk;
     EventCallback_t    event_cb;
     void*              user_data;
+#if DH_RESTRICT_NOTIFY_SIZE_CHECK_ENABLE
+    uint32_t           notify_size; 
+#endif
     DataNodePrivBase_t priv[DataNodePrivSiz];
 } DataNode_t;
 
