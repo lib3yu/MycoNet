@@ -40,6 +40,15 @@
 #define Mutex_unlock(m)   pthread_mutex_unlock(m)
 #define Mutex_destroy(m)  pthread_mutex_destroy(m)
 
+#if 1
+#define Rwlock_t            pthread_rwlock_t
+#define Rwlock_init(m)      pthread_rwlock_init(m, NULL)
+#define Rwlock_rdlock(m)    pthread_rwlock_rdlock(m)
+#define Rwlock_rdunlock(m)  pthread_rwlock_unlock(m)
+#define Rwlock_wrlock(m)    pthread_rwlock_wrlock(m)
+#define Rwlock_wrunlock(m)  pthread_rwlock_unlock(m)
+#define Rwlock_destroy(m)   pthread_rwlock_destroy(m)
+#else
 #define Rwlock_t            pthread_mutex_t
 #define Rwlock_init(m)      pthread_mutex_init(m, NULL)
 #define Rwlock_rdlock(m)    pthread_mutex_lock(m)
@@ -47,16 +56,8 @@
 #define Rwlock_wrlock(m)    pthread_mutex_lock(m)
 #define Rwlock_wrunlock(m)  pthread_mutex_unlock(m)
 #define Rwlock_destroy(m)   pthread_mutex_destroy(m)
-
-// #define Rwlock_t          pthread_rwlock_t
-// #define Rwlock_init(m)    pthread_rwlock_init(m, NULL)
-// #define Rwlock_rdlock(m)  pthread_rwlock_rdlock(m)
-// #define Rwlock_rdunlock(m)  pthread_rwlock_unlock(m)
-// #define Rwlock_wrlock(m)  pthread_rwlock_wrlock(m)
-// #define Rwlock_wrunlock(m)  pthread_rwlock_unlock(m)
-// #define Rwlock_destroy(m) pthread_rwlock_destroy(m)
-
-
+#endif
+ 
 
 typedef \
 struct ll_node {
