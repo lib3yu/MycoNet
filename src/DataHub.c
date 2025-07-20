@@ -6,6 +6,27 @@
 #include "DataHub.h"
 
 //==============================================================================
+// Error Codes
+//==============================================================================
+
+#define ERROR_CODES() \
+    ERROR_CODE(DH_OK, "Success") \
+    ERROR_CODE(DH_ERR_FAIL, "General failure") \
+    ERROR_CODE(DH_ERR_TIMEOUT, "Timeout") \
+    ERROR_CODE(DH_ERR_NOMEM, "No memory") \
+    ERROR_CODE(DH_ERR_NOTFOUND, "Not found") \
+    ERROR_CODE(DH_ERR_NOSUPPORT, "Not supported") \
+    ERROR_CODE(DH_ERR_BUSY, "Busy") \
+    ERROR_CODE(DH_ERR_INVALID, "Invalid argument") \
+    ERROR_CODE(DH_ERR_ACCESS, "Access denied") \
+    ERROR_CODE(DH_ERR_EXIST, "Already exists") \
+    ERROR_CODE(DH_ERR_NODATA, "No data available") \
+    ERROR_CODE(DH_ERR_INITIALIZED, "Already initialized") \
+    ERROR_CODE(DH_ERR_NOTINITIALIZED, "Not initialized") \
+    ERROR_CODE(DH_ERR_SIZE_MISMATCH, "Size mismatch") \
+    ERROR_CODE(DH_ERR_NULL_POINTER, "Null pointer") \
+
+//==============================================================================
 // Platform Abstraction Layer (PAL) for OS primitives
 //==============================================================================
 
@@ -180,6 +201,40 @@ static void ll_list_clear(ll_list_t *list)
     for (ll_node_t *node_p = (list)->head; node_p != NULL; node_p = (node_p)->next)
 
 //==============================================================================
+// Internal Check Helpers
+//==============================================================================
+
+static inline int check_hub_inited(void) 
+{
+    if (!atomic_load(&hub_p()->is_inited)) 
+        return DH_ERR_NOTINITIALIZED;
+    return DH_OK;
+}
+
+static inline int check_node_inited(const DataNode_t *node_p) 
+{
+    if (!atomic_load(&node_priv(node_p)->is_inited)) 
+        return DH_ERR_NOTINITIALIZED;
+    return DH_OK;
+}
+
+static inline int check_node_registered(const DataNode_t *node_p) 
+{
+    if (!atomic_load(&node_priv(node_p)->is_registered)) 
+        return DH_ERR_NOTFOUND;
+    return DH_OK;
+}
+
+static inline int check_hub_and_node_work(const DataNode_t *node_p) 
+{
+    int ret = DH_OK;
+    if ((ret = check_hub_inited()) != DH_OK) return ret;
+    if ((ret = check_node_inited(node_p)) != DH_OK) return ret;
+    if ((ret = check_node_registered(node_p)) != DH_OK) return ret;
+    return DH_OK;
+}
+
+//==============================================================================
 // Hub API Implementation
 //==============================================================================
 
@@ -231,7 +286,8 @@ DH_API int DataHub_Deinit(void)
 
 DH_API int DataHub_GetNodeNum(void) 
 {
-    if (!atomic_load(&hub_p()->is_inited)) return DH_ERR_NOTINITIALIZED;
+    int err = DH_OK;
+    if ((err = check_hub_inited()) != DH_OK) return err;
 
     Rwlock_rdlock(&hub_p()->list_lock);
     int size = hub_p()->node_list.size;
@@ -241,7 +297,8 @@ DH_API int DataHub_GetNodeNum(void)
 
 DH_API DataNode_t *DataHub_SearchNode(const char *name) 
 {
-    if (!atomic_load(&hub_p()->is_inited) || !name) return NULL;
+    if (name == NULL) return NULL;
+    if (check_hub_inited() != DH_OK) return NULL;
 
     Rwlock_rdlock(&hub_p()->list_lock);
     DataNode_t *result = ll_list_find(&hub_p()->node_list, name);
@@ -251,32 +308,35 @@ DH_API DataNode_t *DataHub_SearchNode(const char *name)
 
 DH_API const char *DataHub_GetErrStr(int err) 
 {
-    switch (err) {
-        case DH_OK:                 return "OK";
-        case DH_ERR_FAIL:           return "Fail";
-        case DH_ERR_TIMEOUT:        return "Timeout";
-        case DH_ERR_NOMEM:          return "No Memory";
-        case DH_ERR_NOTFOUND:       return "Not Found";
-        case DH_ERR_NOSUPPORT:      return "Not Supported";
-        case DH_ERR_BUSY:           return "Busy";
-        case DH_ERR_INVALID:        return "Invalid Argument";
-        case DH_ERR_ACCESS:         return "Access Denied";
-        case DH_ERR_EXIST:          return "Already Exists";
-        case DH_ERR_NODATA:         return "No Data Available";
-        case DH_ERR_INITIALIZED:    return "Already Initialized";
-        case DH_ERR_NOTINITIALIZED: return "Not Initialized";
-        case DH_ERR_SIZE_MISMATCH:  return "Data Size Mismatch";
-        default:                    return "Unknown Error";
+#define ERROR_CODE(__code__, __str__) \
+    static const char s_##__code__##_STRING[] = __str__;
+    ERROR_CODES()
+#undef ERROR_CODE
+
+    switch (err) 
+    {
+#define ERROR_CODE(__code__, __str__) \
+        case __code__: return s_##__code__##_STRING;
+        ERROR_CODES()
+#undef ERROR_CODE
+
+        default: 
+            return "Unknown Error";
     }
+
+#ifdef ERROR_CODE
+    #undef ERROR_CODE
+#endif
 }
 
 //==============================================================================
 // Node Tool API Implementation
 //==============================================================================
 
-DH_API int DataHub_InitNode(DataNode_t *node_p) 
+DH_API int DataHub_InitNode(DataNode_t *node_p)
 {
-    if (!node_p || node_p->name[0] == '\0') return DH_ERR_INVALID;
+    if (!node_p) return DH_ERR_NULL_POINTER;
+    if (node_p->name[0] == '\0') return DH_ERR_INVALID;
 
     struct DataNodePriv* priv = node_priv(node_p);
     bool expected = false;
@@ -342,8 +402,9 @@ DH_API int DataHub_DeinitNode(DataNode_t *node_p)
 DH_API int DataHub_PushBackNode(DataNode_t *node_p) 
 {
     if (!node_p) return DH_ERR_INVALID;
-    if (!atomic_load(&hub_p()->is_inited)) return DH_ERR_NOTINITIALIZED;
-    if (!node_priv(node_p)->is_inited) return DH_ERR_NOTINITIALIZED;
+    if (check_hub_inited() != DH_OK) return DH_ERR_NOTINITIALIZED;
+    if (check_node_inited(node_p) != DH_OK) return DH_ERR_NOTINITIALIZED;
+    if (check_node_registered(node_p) == DH_OK) return DH_ERR_EXIST;
 
     bool expected = false;
     if (!atomic_compare_exchange_strong(&node_priv(node_p)->is_registered, &expected, true)) {
@@ -369,7 +430,9 @@ DH_API int DataHub_PushBackNode(DataNode_t *node_p)
 DH_API int DataHub_RemoveNode(DataNode_t *node_p) 
 {
     if (!node_p) return DH_ERR_INVALID;
-    if (!atomic_load(&hub_p()->is_inited)) return DH_ERR_NOTINITIALIZED;
+    int err = DH_OK;
+    if ((err = check_hub_and_node_work(node_p)) != DH_OK) return err;
+
     bool expected = true;
     if (!atomic_compare_exchange_strong(&node_priv(node_p)->is_registered, &expected, false)) {
         return DH_ERR_NOTFOUND;
@@ -384,7 +447,8 @@ DH_API int DataHub_RemoveNode(DataNode_t *node_p)
 
 DH_API int DataHub_GetNodePubNum(DataNode_t *node_p) 
 {
-    if (!node_p || !node_priv(node_p)->is_inited) return DH_ERR_INVALID;
+    if (!node_p) return DH_ERR_NULL_POINTER;
+    if (check_node_inited(node_p) != DH_OK) return DH_ERR_NOTINITIALIZED;
 
     Mutex_lock(&node_priv(node_p)->subscribers_lock);
     int size = node_priv(node_p)->subscribers.size;
@@ -394,7 +458,8 @@ DH_API int DataHub_GetNodePubNum(DataNode_t *node_p)
 
 DH_API int DataHub_GetNodeSubNum(DataNode_t *node_p) 
 {
-    if (!node_p || !node_priv(node_p)->is_inited) return DH_ERR_INVALID;
+    if (!node_p) return DH_ERR_NULL_POINTER;
+    if (check_node_inited(node_p) != DH_OK) return DH_ERR_NOTINITIALIZED;
 
     Mutex_lock(&node_priv(node_p)->subscriptions_lock);
     int size = node_priv(node_p)->subscriptions.size;
@@ -409,8 +474,8 @@ DH_API int DataHub_GetNodeSubNum(DataNode_t *node_p)
 DH_API int DataHub_NodeSubscribe(DataNode_t *node_p, const char *name) 
 {
     if (!node_p || !name) return DH_ERR_INVALID;
-    if (!atomic_load(&hub_p()->is_inited)) return DH_ERR_NOTINITIALIZED;
-    if (!atomic_load(&node_priv(node_p)->is_registered)) return DH_ERR_NOTFOUND;
+    int err = DH_OK;
+    if ((err = check_hub_and_node_work(node_p)) != DH_OK) return err;
 
     /* avoid setting up a useless subscription */
     const EventCode_t check_mask = node_p->event_msk;
@@ -453,11 +518,12 @@ DH_API int DataHub_NodeSubscribe(DataNode_t *node_p, const char *name)
     return ret;
 }
 
-DH_API int DataHub_NodeUnsubscribe(DataNode_t *node_p, const char *name) 
+DH_API int DataHub_NodeUnsubscribe(DataNode_t *node_p, const char *name)
 {
-    if (!node_p || !name) return DH_ERR_INVALID;
-    if (!atomic_load(&hub_p()->is_inited)) return DH_ERR_NOTINITIALIZED;
-    if (!atomic_load(&node_priv(node_p)->is_registered)) return DH_ERR_NOTFOUND;
+    if (!node_p) return DH_ERR_NULL_POINTER;
+    if (!name || name[0] == '\0') return DH_ERR_INVALID;
+    int err = DH_OK;
+    if ((err = check_hub_and_node_work(node_p)) != DH_OK) return err;
 
     DataNode_t *pub_node = DataHub_SearchNode(name);
     if (pub_node == NULL) return DH_ERR_NOTFOUND;
@@ -505,7 +571,6 @@ void update_to_cache(DataNode_t *node_p, const void *data_p, int size)
 
 static int SendEvent(struct DataNode* node_p, EventParam_t* param)
 {
-    if (!node_p || !param) return DH_ERR_INVALID;
     if (!(node_p->event_msk & param->event)) return DH_ERR_NOSUPPORT;
     
     // check if CONF_CACHED is enabled
@@ -569,8 +634,11 @@ static int node_publish(DataNode_t *node_p, const void *data_p, int size, int ju
 DH_API int DataHub_NodePublish(DataNode_t *node_p, const void *data_p, int size)
 {
     if (!node_p || !data_p || size < 0) return DH_ERR_INVALID;
-    if (!atomic_load(&node_priv(node_p)->is_registered)) return DH_ERR_NOTFOUND;
-    if (node_p->size != 0 && node_p->size != (uint32_t)size) return DH_ERR_SIZE_MISMATCH;
+    int err = DH_OK;
+    if ((err = check_hub_and_node_work(node_p)) != DH_OK) return err;
+
+    if (node_p->size != 0 && node_p->size != (uint32_t)size) 
+        return DH_ERR_SIZE_MISMATCH;
 
     return node_publish(node_p, data_p, size, 0); // publish with data
 }
@@ -578,8 +646,10 @@ DH_API int DataHub_NodePublish(DataNode_t *node_p, const void *data_p, int size)
 DH_API int DataHub_NodePublishSignal(DataNode_t *node_p, const void *data_p, int size)
 {
     if (!node_p || !data_p || size < 0) return DH_ERR_INVALID;
-    if (!atomic_load(&node_priv(node_p)->is_registered)) return DH_ERR_NOTFOUND;
-    if (node_p->size != 0 && node_p->size != (uint32_t)size) return DH_ERR_SIZE_MISMATCH;
+    int err = DH_OK;
+    if ((err = check_hub_and_node_work(node_p)) != DH_OK) return err;
+    if (node_p->size != 0 && node_p->size != (uint32_t)size) 
+        return DH_ERR_SIZE_MISMATCH;
 
     return node_publish(node_p, data_p, size, 1); // publish just signal
 }
@@ -587,8 +657,8 @@ DH_API int DataHub_NodePublishSignal(DataNode_t *node_p, const void *data_p, int
 DH_API int DataHub_NodePull(DataNode_t *node_p, const char *name, void *data_p, uint32_t size) 
 {
     if (!node_p || !name || !data_p) return DH_ERR_INVALID;
-    if (!atomic_load(&hub_p()->is_inited)) return DH_ERR_NOTINITIALIZED;
-    if (!atomic_load(&node_priv(node_p)->is_registered)) return DH_ERR_NOTFOUND;
+    int err = DH_OK;
+    if ((err = check_hub_and_node_work(node_p)) != DH_OK) return err;
 
     DataNode_t *pub_node = DataHub_SearchNode(name);
     if (!pub_node) return DH_ERR_NOTFOUND;
@@ -613,8 +683,8 @@ DH_API int DataHub_NodePull(DataNode_t *node_p, const char *name, void *data_p, 
 DH_API int DataHub_NodeNotify(DataNode_t *node_p, const char *name, const void *data_p, int size) 
 {
     if (!node_p || !name || !data_p || size < 0) return DH_ERR_INVALID;
-    if (!atomic_load(&hub_p()->is_inited)) return DH_ERR_NOTINITIALIZED;
-    if (!atomic_load(&node_priv(node_p)->is_registered)) return DH_ERR_NOTFOUND;
+    int err = DH_OK;
+    if ((err = check_hub_and_node_work(node_p)) != DH_OK) return err;
 
     DataNode_t *target_node = DataHub_SearchNode(name);
     if (!target_node) return DH_ERR_NOTFOUND;

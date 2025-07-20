@@ -35,6 +35,7 @@ extern "C" {
 #define DH_ERR_INITIALIZED      (-11)
 #define DH_ERR_NOTINITIALIZED   (-12)
 #define DH_ERR_SIZE_MISMATCH    (-13)
+#define DH_ERR_NULL_POINTER     (-14)
 
 //==============================================================================
 // Type Definitions
