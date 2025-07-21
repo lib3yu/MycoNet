@@ -24,11 +24,11 @@ extern "C" {
 #define DH_RESTRICT_NOTIFY_SIZE_CHECK_ENABLE 1
 
 // enable communication log
-#define DH_NODE_COMMUNICATION_LOG_ENABLE 0
-#if DH_NODE_COMMUNICATION_LOG_ENABLE
-    #define DH_NODE_COMM_LOG(fmt, ...) printf(fmt "\n", __VA_ARGS__)
+#define DH_NODE_COMM_FLOW_TRACE_ENABLE 1
+#if DH_NODE_COMM_FLOW_TRACE_ENABLE
+    #define DH_NODE_COMM_FLOW_TRACE(fmt, ...) printf(fmt "\n", __VA_ARGS__)
 #else
-    #define DH_NODE_COMM_LOG(fmt, ...) 
+    #define DH_NODE_COMM_FLOW_TRACE(fmt, ...) 
 #endif
 
 #define DH_API

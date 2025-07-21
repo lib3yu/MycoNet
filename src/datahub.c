@@ -586,7 +586,7 @@ void update_to_cache(DataNode_t *node_p, const void *data_p, int size)
 
 static int SendEvent(struct DataNode* node_p, EventParam_t* param)
 {
-#if DH_NODE_COMMUNICATION_LOG_ENABLE
+#if DH_NODE_COMM_FLOW_TRACE_ENABLE
     static const char *_event_str[] = {
         "EVENT_NONE",
         "EVENT_PUBLISH",
@@ -595,7 +595,7 @@ static int SendEvent(struct DataNode* node_p, EventParam_t* param)
         "EVENT_PUBLISH_SIG",
     };
 
-    DH_NODE_COMM_LOG(
+    DH_NODE_COMM_FLOW_TRACE(
         "Comm Event Flow: sender=%s --<event:%s>--> recver=%s, size=%d", 
         param->sender->name, 
         _event_str[param->event], 
