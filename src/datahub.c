@@ -332,6 +332,20 @@ DH_API const char *DataHub_GetErrStr(int err)
 #endif
 }
 
+DH_API int DataHub_PrintNodeList(int (*print_)(const char *fmt, ...))
+{
+    if (print_ == NULL) return DH_ERR_NULL_POINTER;
+    if (check_hub_inited()) return DH_ERR_NOTINITIALIZED;
+
+    Rwlock_rdlock(&hub_p()->list_lock);
+    print_("Node List:\n");
+    ll_list_for_each(&hub_p()->node_list, node_p) {
+        print_("\t%s\n", node_p->data->name);
+    }
+    Rwlock_rdunlock(&hub_p()->list_lock);
+    return DH_OK;
+}
+
 //==============================================================================
 // Node Tool API Implementation
 //==============================================================================

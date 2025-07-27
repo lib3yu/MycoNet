@@ -121,6 +121,7 @@ DH_API int DataHub_Deinit(void);
 DH_API int DataHub_GetNodeNum(void);
 DH_API DataNode_t *DataHub_SearchNode(const char *name);
 DH_API const char *DataHub_GetErrStr(int err);
+DH_API int DataHub_PrintNodeList(int (*print_)(const char *fmt, ...));
 
 /**Node Tool API */
 DH_API int DataHub_InitNode(DataNode_t *node_p);
