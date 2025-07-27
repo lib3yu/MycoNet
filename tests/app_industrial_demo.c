@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
-#include "../include/DataHub.h"
+#include <myconet.h>
 
 typedef struct {
     double temperature;
@@ -13,30 +13,30 @@ typedef struct {
     char command[64];
 } ActuatorCommand_t;
 
-int sensor_cb(DataNode_t* node, EventParam_t* param) {
+int sensor_cb(MycoNode_t* node, EventParam_t* param) {
     if (param->event == EVENT_PULL) {
         printf("[Sensor] >> PULL request received from '%s'.\n", param->sender->name);
     }
-    return DH_OK;
+    return MN_OK;
 }
 
-int logger_cb(DataNode_t* node, EventParam_t* param) {
+int logger_cb(MycoNode_t* node, EventParam_t* param) {
     if (param->event == EVENT_PUBLISH) {
         TempSensorData_t* data = (TempSensorData_t*)param->data_p;
         printf("[Logger] << Received temp data: %.2f C (from %s)\n", data->temperature, param->sender->name);
     }
-    return DH_OK;
+    return MN_OK;
 }
 
-int actuator_cb(DataNode_t* node, EventParam_t* param) {
+int actuator_cb(MycoNode_t* node, EventParam_t* param) {
     if (param->event == EVENT_NOTIFY) {
         ActuatorCommand_t* cmd = (ActuatorCommand_t*)param->data_p;
         printf("[Actuator] << Received command: %s (from %s)\n", cmd->command, param->sender->name);
     }
-    return DH_OK;
+    return MN_OK;
 }
 
-DataNode_t g_sensor_node = {
+MycoNode_t g_sensor_node = {
     .name = "temp_sensor_1",
     .size = sizeof(TempSensorData_t),
     .conflags = CONF_CACHED,
@@ -44,7 +44,7 @@ DataNode_t g_sensor_node = {
     .event_cb = sensor_cb,
 };
 
-DataNode_t g_logger_node = {
+MycoNode_t g_logger_node = {
     .name = "data_logger",
     .size = 0,
     .conflags = CONF_NONE,
@@ -52,7 +52,7 @@ DataNode_t g_logger_node = {
     .event_cb = logger_cb,
 };
 
-DataNode_t g_control_node = {
+MycoNode_t g_control_node = {
     .name = "pid_controller",
     .size = 0,
     .conflags = CONF_NONE,
@@ -60,7 +60,7 @@ DataNode_t g_control_node = {
     .event_cb = NULL,
 };
 
-DataNode_t g_actuator_node = {
+MycoNode_t g_actuator_node = {
     .name = "heater_actuator",
     .size = 0,
     .conflags = CONF_NONE,
@@ -88,7 +88,7 @@ void* sensor_thread_func(void* arg) {
     while (1) {
         TempSensorData_t data = { .temperature = current_temp, .timestamp = time(NULL) };
         printf("[Sensor] >> Publishing new temperature: %.2f C\n", current_temp);
-        DataHub_NodePublish(&g_sensor_node, &data, sizeof(data));
+        MycoNet_NodePublish(&g_sensor_node, &data, sizeof(data));
         
         current_temp += (double)(rand() % 100 - 50) / 100.0;
         sleep(1);
@@ -99,7 +99,7 @@ void* sensor_thread_func(void* arg) {
 void* logger_thread_func(void* arg) {
     printf("[Logger] Thread started. Subscribing to sensor.\n");
     // Subscription can happen immediately as it's part of its own setup
-    DataHub_NodeSubscribe(&g_logger_node, g_sensor_node.name);
+    MycoNet_NodeSubscribe(&g_logger_node, g_sensor_node.name);
     
     printf("[Logger] Waiting at barrier.\n");
     pthread_barrier_wait(&g_init_barrier);
@@ -121,9 +121,9 @@ void* control_thread_func(void* arg) {
         printf("[Control] Waking up to check temperature...\n");
         TempSensorData_t current_data;
         
-        int ret = DataHub_NodePull(&g_control_node, g_sensor_node.name, &current_data, sizeof(current_data));
+        int ret = MycoNet_NodePull(&g_control_node, g_sensor_node.name, &current_data, sizeof(current_data));
 
-        if (ret == DH_OK) {
+        if (ret == MN_OK) {
             printf("[Control] << Pulled temperature is %.2f C.\n", current_data.temperature);
             ActuatorCommand_t cmd;
             if (current_data.temperature < 22.0) {
@@ -134,9 +134,9 @@ void* control_thread_func(void* arg) {
                 snprintf(cmd.command, sizeof(cmd.command), "MAINTAIN CURRENT STATE");
             }
             printf("[Control] >> Sending command to actuator: %s\n", cmd.command);
-            DataHub_NodeNotify(&g_control_node, g_actuator_node.name, &cmd, sizeof(cmd));
+            MycoNet_NodeNotify(&g_control_node, g_actuator_node.name, &cmd, sizeof(cmd));
         } else {
-            fprintf(stderr, "[Control] !! Failed to pull data: %s\n", DataHub_GetErrStr(ret));
+            fprintf(stderr, "[Control] !! Failed to pull data: %s\n", MycoNet_GetErrStr(ret));
         }
     }
     return NULL;
@@ -159,19 +159,19 @@ int main() {
     printf("========== Industrial Demo Application ==========\n");
 
     // 1. Init Hub
-    DataHub_Init();
+    MycoNet_Init();
 
     // 2. Init all nodes
-    DataHub_InitNode(&g_sensor_node);
-    DataHub_InitNode(&g_logger_node);
-    DataHub_InitNode(&g_control_node);
-    DataHub_InitNode(&g_actuator_node);
+    MycoNet_InitNode(&g_sensor_node);
+    MycoNet_InitNode(&g_logger_node);
+    MycoNet_InitNode(&g_control_node);
+    MycoNet_InitNode(&g_actuator_node);
 
     // 3. Register all nodes to the hub
-    DataHub_PushBackNode(&g_sensor_node);
-    DataHub_PushBackNode(&g_logger_node);
-    DataHub_PushBackNode(&g_control_node);
-    DataHub_PushBackNode(&g_actuator_node);
+    MycoNet_PushBackNode(&g_sensor_node);
+    MycoNet_PushBackNode(&g_logger_node);
+    MycoNet_PushBackNode(&g_control_node);
+    MycoNet_PushBackNode(&g_actuator_node);
     printf("All nodes initialized and registered by main thread.\n");
 
     // 4. Initialize the barrier
@@ -194,7 +194,7 @@ int main() {
     
     // Cleanup
     pthread_barrier_destroy(&g_init_barrier);
-    DataHub_Deinit();
+    MycoNet_Deinit();
     printf("========== Application Finished ==========\n");
     return 0;
 }

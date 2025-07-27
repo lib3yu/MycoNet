@@ -9,7 +9,7 @@
 #include <time.h>
 #include <unistd.h> 
 #include <string.h> 
-#include "../include/DataHub.h"
+#include <myconet.h>
 
 #define NUM_SENSORS 50    // 传感器节点数量
 #define NUM_CONTROLLERS 20 // 控制器节点数量
@@ -37,15 +37,15 @@ static atomic_int error_count = 0;
 static atomic_bool test_running = false;
 
 // 传感器节点
-DataNode_t sensor_nodes[NUM_SENSORS];
+MycoNode_t sensor_nodes[NUM_SENSORS];
 SensorData sensor_cache[NUM_SENSORS];
 
 // 控制器节点
-DataNode_t controller_nodes[NUM_CONTROLLERS];
+MycoNode_t controller_nodes[NUM_CONTROLLERS];
 ControlCommand control_cache[NUM_CONTROLLERS];
 
 // 监控节点
-DataNode_t monitor_nodes[NUM_MONITORS];
+MycoNode_t monitor_nodes[NUM_MONITORS];
 
 // 回调函数
 static int sensor_callback(struct DataNode* node_p, EventParam_t* param);
@@ -59,7 +59,7 @@ void init_test_nodes(void) {
     // 初始化传感器节点
     for (int i = 0; i < NUM_SENSORS; i++) {
         
-        sensor_nodes[i] = (DataNode_t){
+        sensor_nodes[i] = (MycoNode_t){
             .name = {0},
             .size = sizeof(SensorData),
             .conflags = CONF_CACHED,
@@ -69,8 +69,8 @@ void init_test_nodes(void) {
         };
         snprintf(sensor_nodes[i].name, sizeof(name), "sensor_%d", i);
         
-        DataHub_InitNode(&sensor_nodes[i]);
-        DataHub_PushBackNode(&sensor_nodes[i]);
+        MycoNet_InitNode(&sensor_nodes[i]);
+        MycoNet_PushBackNode(&sensor_nodes[i]);
         
         // 初始化传感器缓存
         sensor_cache[i] = (SensorData){
@@ -84,7 +84,7 @@ void init_test_nodes(void) {
     // 初始化控制器节点
     for (int i = 0; i < NUM_CONTROLLERS; i++) {
         
-        controller_nodes[i] = (DataNode_t){
+        controller_nodes[i] = (MycoNode_t){
             .name = {0},
             .size = sizeof(ControlCommand),
             .conflags = CONF_CACHED,
@@ -94,8 +94,8 @@ void init_test_nodes(void) {
         };
         snprintf(controller_nodes[i].name, sizeof(name), "controller_%d", i);
         
-        DataHub_InitNode(&controller_nodes[i]);
-        DataHub_PushBackNode(&controller_nodes[i]);
+        MycoNet_InitNode(&controller_nodes[i]);
+        MycoNet_PushBackNode(&controller_nodes[i]);
         
         // 初始化控制缓存
         control_cache[i] = (ControlCommand){
@@ -108,7 +108,7 @@ void init_test_nodes(void) {
     // 初始化监控节点
     for (int i = 0; i < NUM_MONITORS; i++) {
         
-        monitor_nodes[i] = (DataNode_t){
+        monitor_nodes[i] = (MycoNode_t){
             .name = {0},
             .size = 0,
             .conflags = CONF_NONE,
@@ -117,8 +117,8 @@ void init_test_nodes(void) {
         };
         snprintf(monitor_nodes[i].name, sizeof(name), "monitor_%d", i);
 
-        DataHub_InitNode(&monitor_nodes[i]);
-        DataHub_PushBackNode(&monitor_nodes[i]);
+        MycoNet_InitNode(&monitor_nodes[i]);
+        MycoNet_PushBackNode(&monitor_nodes[i]);
     }
 }
 
@@ -134,7 +134,7 @@ static int sensor_callback(struct DataNode* node_p, EventParam_t* param) {
             atomic_fetch_add(&total_messages, 1);
         }
     }
-    return DH_OK;
+    return MN_OK;
 }
 
 static int controller_callback(struct DataNode* node_p, EventParam_t* param) {
@@ -154,7 +154,7 @@ static int controller_callback(struct DataNode* node_p, EventParam_t* param) {
             cache->timestamp = data->timestamp;
             
             // 发布控制命令
-            DataHub_NodePublish(node_p, cache, sizeof(ControlCommand));
+            MycoNet_NodePublish(node_p, cache, sizeof(ControlCommand));
             atomic_fetch_add(&total_messages, 1);
         }
     } else if (param->event == EVENT_NOTIFY) {
@@ -166,13 +166,13 @@ static int controller_callback(struct DataNode* node_p, EventParam_t* param) {
             atomic_fetch_add(&total_messages, 1);
         }
     }
-    return DH_OK;
+    return MN_OK;
 }
 
 static int monitor_callback(struct DataNode* node_p, EventParam_t* param) {
     // 监控节点记录所有事件
     atomic_fetch_add(&total_messages, 1);
-    return DH_OK;
+    return MN_OK;
 }
 
 // ================= 线程函数 =================
@@ -196,13 +196,13 @@ void* sensor_thread(void* arg) {
             data->timestamp = (uint32_t)(elapsed * 1000);
             
             // 发布数据
-            int result = DataHub_NodePublish(
+            int result = MycoNet_NodePublish(
                 &sensor_nodes[sensor_id], 
                 data, 
                 sizeof(SensorData)
             );
             
-            if (result != DH_OK) {
+            if (result != MN_OK) {
                 atomic_fetch_add(&error_count, 1);
             }
             
@@ -220,7 +220,7 @@ void* controller_thread(void* arg) {
     // 订阅相关传感器
     for (int i = 0; i < NUM_SENSORS; i++) {
         if (i % NUM_CONTROLLERS == controller_id) {
-            DataHub_NodeSubscribe(
+            MycoNet_NodeSubscribe(
                 &controller_nodes[controller_id],
                 sensor_nodes[i].name
             );
@@ -230,7 +230,7 @@ void* controller_thread(void* arg) {
     // 订阅其他控制器
     for (int i = 0; i < NUM_CONTROLLERS; i++) {
         if (i != controller_id) {
-            DataHub_NodeSubscribe(
+            MycoNet_NodeSubscribe(
                 &controller_nodes[controller_id],
                 controller_nodes[i].name
             );
@@ -252,7 +252,7 @@ void* controller_thread(void* arg) {
             // 通知所有控制器更新参数
             for (int i = 0; i < NUM_CONTROLLERS; i++) {
                 if (i != controller_id) {
-                    DataHub_NodeNotify(
+                    MycoNet_NodeNotify(
                         &controller_nodes[controller_id],
                         controller_nodes[i].name,
                         &cmd,
@@ -272,14 +272,14 @@ void* monitor_thread(void* arg) {
     
     // 订阅所有传感器和控制器
     for (int i = 0; i < NUM_SENSORS; i++) {
-        DataHub_NodeSubscribe(
+        MycoNet_NodeSubscribe(
             &monitor_nodes[monitor_id],
             sensor_nodes[i].name
         );
     }
     
     for (int i = 0; i < NUM_CONTROLLERS; i++) {
-        DataHub_NodeSubscribe(
+        MycoNet_NodeSubscribe(
             &monitor_nodes[monitor_id],
             controller_nodes[i].name
         );
@@ -295,7 +295,7 @@ void* monitor_thread(void* arg) {
 // ================= 压力测试用例 =================
 START_TEST(test_industrial_stress) {
     // 初始化DataHub
-    ck_assert_int_eq(DataHub_Init(), DH_OK);
+    ck_assert_int_eq(MycoNet_Init(), MN_OK);
     init_test_nodes();
     
     // 创建线程
@@ -362,12 +362,12 @@ START_TEST(test_industrial_stress) {
     // 验证无错误发生
     ck_assert_int_eq(error_count, 0);
     
-    DataHub_Deinit();
+    MycoNet_Deinit();
 }
 END_TEST
 
 // ================= 测试套件配置 =================
-Suite* datahub_suite(void) {
+Suite* myconet_suite(void) {
     Suite* s = suite_create("DataHub Stress Test");
     
     TCase* tc_stress = tcase_create("IndustrialStress");
@@ -380,7 +380,7 @@ Suite* datahub_suite(void) {
 
 int main(void) {
     int number_failed;
-    Suite* s = datahub_suite();
+    Suite* s = myconet_suite();
     SRunner* sr = srunner_create(s);
     
     srunner_run_all(sr, CK_NORMAL);
