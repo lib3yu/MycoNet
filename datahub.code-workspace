@@ -1,0 +1,19 @@
+{
+    "folders": [
+		{
+			"path": ".",
+			"name": "datahub",
+		}
+	],
+	"extensions": {
+		"recommendations": [
+			"ms-vscode.cpptools",
+			"ms-vscode.cpptools-extension-pack",
+			"ms-vscode.makefile-tools",
+			"christian-kohler.path-intellisense",
+			"esbenp.prettier-vscode",
+			"mhutchie.git-graph",
+			"Anthropic.claude-code",
+		]
+	},
+}
