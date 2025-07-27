@@ -2,7 +2,7 @@
     "folders": [
 		{
 			"path": ".",
-			"name": "datahub",
+			"name": "myconet",
 		}
 	],
 	"extensions": {
@@ -38,7 +38,7 @@
 		"makefile.configureOnOpen": true,
 		"makefile.buildBeforeLaunch": true,
 		"files.associations": {
-			"datahub.h": "c",
+			"myconet.h": "c",
 			"type_traits": "c"
 		},
 
