@@ -20,16 +20,23 @@
 		"editor.insertSpaces": true,
 
 		"C_Cpp.default.compilerPath": "/usr/bin/gcc",
-		"C_Cpp.default.cStandard": "",
+		"C_Cpp.default.cStandard": "c11",
 		"C_Cpp.default.cppStandard": "",
 		"C_Cpp.default.intelliSenseMode": "linux-gcc-x64",
 		"C_Cpp.default.includePath": [
 			"${workspaceFolder}/include",
 		],
+		"C_Cpp.default.defines": [
+			"_GNU_SOURCE",
+		],
 		
 		"makefile.makefilePath": "${workspaceFolder}/Makefile",
 		"makefile.configureOnOpen": true,
 		"makefile.buildBeforeLaunch": true,
+		"files.associations": {
+			"datahub.h": "c",
+			"type_traits": "c"
+		},
 
 	},
 }
