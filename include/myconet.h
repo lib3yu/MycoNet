@@ -20,11 +20,15 @@ extern "C" {
 // enable cache support
 #define MN_CACHE_SUPPORT_ENABLE 1
 
+// enable lock
+#define MN_CONF_USE_LOCK 1
+
+
 // restrict notify size check to avoid buffer overflow
 #define MN_RESTRICT_NOTIFY_SIZE_CHECK_ENABLE 1
 
 // enable communication log
-#define MN_NODE_COMM_FLOW_TRACE_ENABLE 1
+#define MN_NODE_COMM_FLOW_TRACE_ENABLE 0
 #if MN_NODE_COMM_FLOW_TRACE_ENABLE
     #define MN_NODE_COMM_FLOW_TRACE(fmt, ...) printf(fmt "\n", __VA_ARGS__)
 #else

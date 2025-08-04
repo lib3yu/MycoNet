@@ -33,7 +33,7 @@
 #include <pthread.h>
 #define Mem_alloc(size)   malloc(size)
 #define Mem_free(ptr)     free(ptr)
-
+#if MN_CONF_USE_LOCK
 #define Mutex_t           pthread_mutex_t
 #define Mutex_init(m)     pthread_mutex_init(m, NULL)
 #define Mutex_lock(m)     pthread_mutex_lock(m)
@@ -57,7 +57,24 @@
 #define Rwlock_wrunlock(m)  pthread_mutex_unlock(m)
 #define Rwlock_destroy(m)   pthread_mutex_destroy(m)
 #endif
- 
+
+#else /* MN_CONF_USE_LOCK */
+
+#define Mutex_t           
+#define Mutex_init(m)     
+#define Mutex_lock(m)     
+#define Mutex_unlock(m)   
+#define Mutex_destroy(m)  
+
+#define Rwlock_t            
+#define Rwlock_init(m)      
+#define Rwlock_rdlock(m)    
+#define Rwlock_rdunlock(m)  
+#define Rwlock_wrlock(m)    
+#define Rwlock_wrunlock(m)  
+#define Rwlock_destroy(m)   
+
+#endif /* MN_CONF_USE_LOCK */
 
 typedef \
 struct ll_node {
@@ -76,21 +93,29 @@ struct DataNodePriv {
     atomic_bool  is_inited;
     atomic_bool  is_registered;
     ll_list_t    subscribers;
-    Mutex_t      subscribers_lock;
     ll_list_t    subscriptions;
-    Mutex_t      subscriptions_lock;
 #if MN_CACHE_SUPPORT_ENABLE
     void*        cache_p;
+#endif /* MN_CACHE_SUPPORT_ENABLE */
+
+#if MN_CONF_USE_LOCK
+#if MN_CACHE_SUPPORT_ENABLE
     Rwlock_t     cache_lock;
-#endif
+#endif /* MN_CACHE_SUPPORT_ENABLE */
+    Mutex_t      subscribers_lock;
+    Mutex_t      subscriptions_lock;
+#endif /* MN_CONF_USE_LOCK */
+
 };
 
 typedef \
 struct DataHub {
     char          name[MN_NODE_NAME_MAX_LEN];
     ll_list_t     node_list;
-    Rwlock_t      list_lock;
     atomic_bool   is_inited;
+#if MN_CONF_USE_LOCK
+    Rwlock_t      list_lock;
+#endif
 } MycoNet_t;
 
 static MycoNet_t s_hub = {
@@ -249,10 +274,13 @@ MN_API int MycoNet_Init(void)
     }
 
     ll_list_init(&hub_p()->node_list);
+
+#if MN_CONF_USE_LOCK
     if (Rwlock_init(&hub_p()->list_lock) != 0) {
         atomic_store(&hub_p()->is_inited, false);
         return MN_ERR_FAIL;
     }
+#endif
 
     // Initialize the dummy node
     int err = 0;
@@ -516,6 +544,7 @@ MN_API int MycoNet_NodeSubscribe(MycoNode_t *node_p, const char *name)
     if (node_p == pub_node) return MN_ERR_INVALID; // Cannot subscribe to self
 
     // always lock nodes in a consistent order (by address)
+#if MN_CONF_USE_LOCK
     Mutex_t *lock1, *lock2;
     if ((uintptr_t)node_p < (uintptr_t)pub_node) {
         lock1 = &node_priv(node_p)->subscriptions_lock;
@@ -524,9 +553,9 @@ MN_API int MycoNet_NodeSubscribe(MycoNode_t *node_p, const char *name)
         lock1 = &node_priv(pub_node)->subscribers_lock;
         lock2 = &node_priv(node_p)->subscriptions_lock;
     }
-
     Mutex_lock(lock1);
     Mutex_lock(lock2);
+#endif
 
     int ret = MN_OK;
     if (!ll_list_find(&node_priv(node_p)->subscriptions, pub_node->name)) 
@@ -556,6 +585,7 @@ MN_API int MycoNet_NodeUnsubscribe(MycoNode_t *node_p, const char *name)
     MycoNode_t *pub_node = MycoNet_SearchNode(name);
     if (pub_node == NULL) return MN_ERR_NOTFOUND;
 
+#if MN_CONF_USE_LOCK
     Mutex_t *lock1, *lock2;
     if ((uintptr_t)node_p < (uintptr_t)pub_node) {
         lock1 = &node_priv(node_p)->subscriptions_lock;
@@ -567,6 +597,7 @@ MN_API int MycoNet_NodeUnsubscribe(MycoNode_t *node_p, const char *name)
 
     Mutex_lock(lock1);
     Mutex_lock(lock2);
+#endif
 
     int ret = MN_OK;
     if (ll_list_remove(&node_priv(node_p)->subscriptions, pub_node) == 0) {
