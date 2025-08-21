@@ -1,16 +1,16 @@
 #include "myconet.hpp"
-#include <stdlib.h>
-#include <string.h>
-#include <string>
+#include <array>
+#include <atomic>
+#include <functional>
+#include <list>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
-#include <list>
+#include <stdlib.h>
+#include <string.h>
+#include <string>
 #include <vector>
-#include <functional>
-#include <atomic>
-#include <array>
 
 using namespace MycoNets;
 
@@ -40,17 +40,17 @@ MycoNode::MycoNode(std::string name, const NodeParam &param, MycoNet &net) :
 
     if (notify_size > 0 && conflags & CONF_NOTIFY_SIZE_CHECK)
         check_notify_size = true;
-    
 }
 
 int MycoNode::Subscribe(std::string target_node_name)
 {
     if (event_cb == nullptr || event_mask == EVENT_NONE)
         return MN_ERR_NOSUPPORT;
-    
+
     auto target_node = net.GetNode(target_node_name);
     // add to pending list
-    if (target_node.first == INVALID_ID) {
+    if (target_node.first == INVALID_ID)
+    {
         PendingItem item = {};
         item.node_id = id;
         item.target_node_name = target_node_name;
@@ -70,7 +70,8 @@ int MycoNode::Subscribe(std::string target_node_name)
     // notify latched when subscribed
     std::shared_ptr<MycoNode> &node = target_node.second;
     const NodeID &node_id = target_node.first;
-    if (node->using_cache && node->event_mask & EVENT_LATCHED) {
+    if (node->using_cache && node->event_mask & EVENT_LATCHED)
+    {
         std::shared_lock<std::shared_mutex> lock(node->cache_lock);
         EventParam param = {};
         param.event = EVENT_LATCHED;
@@ -91,10 +92,9 @@ int MycoNode::Unsubscribe(const std::shared_ptr<MycoNode> &target_node)
     target_node->subscriber_list.remove(id);
     // Remove target from this node's subscription list
     subscription_list.remove(target_node->id);
-    
+
     return MN_OK;
 }
-
 
 int MycoNode::Pull(const std::shared_ptr<MycoNode> &target_node, void *buf, size_t size)
 {
@@ -108,9 +108,9 @@ int MycoNode::Pull(const std::shared_ptr<MycoNode> &target_node, void *buf, size
         memcpy(buf, target_node->cache.data(), size);
         return MN_INFO_CACHE_PULLED;
     }
-    
+
     // Call event callback if registered for PULL events
-    if (target_node->event_mask & EVENT_PULL) 
+    if (target_node->event_mask & EVENT_PULL)
     {
         EventParam param = {};
         param.event = EVENT_PULL;
@@ -120,35 +120,33 @@ int MycoNode::Pull(const std::shared_ptr<MycoNode> &target_node, void *buf, size
         param.size = size;
         target_node->event_cb(&param);
     }
-    
+
     return MN_OK;
 }
-
 
 int MycoNode::Notify(const std::shared_ptr<MycoNode> &target_node, const void *buf, size_t size)
 {
     if (buf == nullptr) return MN_ERR_NULL_POINTER;
     // check size
-    if (target_node->check_notify_size && size != target_node->notify_size) 
+    if (target_node->check_notify_size && size != target_node->notify_size)
     {
         return MN_ERR_SIZE_MISMATCH;
     }
-    
+
     // Call event callback if registered for NOTIFY events
-    if (target_node->event_mask & EVENT_NOTIFY) 
+    if (target_node->event_mask & EVENT_NOTIFY)
     {
         EventParam param = {};
         param.event = EVENT_NOTIFY;
         param.sender = id;
         param.recver = target_node->id;
-        param.data_p = const_cast<void*>(buf);
+        param.data_p = const_cast<void *>(buf);
         param.size = size;
         target_node->event_cb(&param);
     }
-    
+
     return MN_OK;
 }
-
 
 int MycoNode::Unsubscribe(std::string target_node_name)
 {
@@ -157,14 +155,12 @@ int MycoNode::Unsubscribe(std::string target_node_name)
     return Unsubscribe(target_node.second);
 }
 
-
 int MycoNode::Unsubscribe(NodeID target_node_id)
 {
     auto target_node = net.GetNode(target_node_id);
     if (target_node == nullptr) return MN_ERR_NOTFOUND;
     return Unsubscribe(target_node);
 }
-
 
 int MycoNode::Publish(const void *buf, size_t size)
 {
@@ -188,20 +184,20 @@ int MycoNode::Publish(const void *buf, size_t size)
         }
     }
 
-    for (const auto &sub_node : subscribers) 
+    for (const auto &sub_node : subscribers)
     {
-        if (sub_node && sub_node->event_mask & EVENT_PUBLISH) 
+        if (sub_node && sub_node->event_mask & EVENT_PUBLISH)
         {
             EventParam param = {};
             param.event = EVENT_PUBLISH;
             param.sender = id;
             param.recver = sub_node->id;
-            param.data_p = const_cast<void*>(buf);
+            param.data_p = const_cast<void *>(buf);
             param.size = size;
             sub_node->event_cb(&param);
         }
     }
-    
+
     return MN_OK;
 }
 
@@ -211,7 +207,6 @@ int MycoNode::Pull(NodeID target_node_id, void *buf, size_t size)
     if (target_node == nullptr) return MN_ERR_NOTFOUND;
     return Pull(target_node, buf, size);
 }
-
 
 int MycoNode::Pull(std::string target_node_name, void *buf, size_t size)
 {
@@ -227,7 +222,6 @@ int MycoNode::Notify(std::string target_node_name, const void *buf, size_t size)
     return Notify(target_node.second, buf, size);
 }
 
-
 int MycoNode::Notify(NodeID target_node_id, const void *buf, size_t size)
 {
     auto target_node = net.GetNode(target_node_id);
@@ -235,15 +229,13 @@ int MycoNode::Notify(NodeID target_node_id, const void *buf, size_t size)
     return Notify(target_node, buf, size);
 }
 
-
 // =====================================================
 // =====================================================
 // =====================================================
 // =====================================================
 // =====================================================
 
-
-std::shared_ptr<MycoNode> MycoNet::NewNode(std::string node_name, const NodeParam &param) 
+std::shared_ptr<MycoNode> MycoNet::NewNode(std::string node_name, const NodeParam &param)
 {
     // enable std::make_shared to use private constructor
     struct MakeNewNodeEnable : public MycoNode {
@@ -254,7 +246,8 @@ std::shared_ptr<MycoNode> MycoNet::NewNode(std::string node_name, const NodePara
     std::shared_ptr<MycoNode> new_node;
     {
         std::unique_lock<std::shared_mutex> lock(nodes_mutex);
-        if (nodes_map.find(node_name) != nodes_map.end()) return nullptr;
+        if (nodes_map.find(node_name) != nodes_map.end())
+            return nullptr;
 
         NodeID node_id = MakeNewNodeId();
         new_node = std::make_shared<MakeNewNodeEnable>(node_name, param, *this);
@@ -277,7 +270,8 @@ std::shared_ptr<MycoNode> MycoNet::NewNode(std::string node_name, const NodePara
         }
     }
     // process items_to_process
-    for (const auto& item : items_to_process) {
+    for (const auto &item : items_to_process)
+    {
         auto subscriber_node = GetNode(item.node_id);
         subscriber_node->Subscribe(node_name);
     }
@@ -287,41 +281,40 @@ std::shared_ptr<MycoNode> MycoNet::NewNode(std::string node_name, const NodePara
 int MycoNet::RemoveNode(std::string node_name)
 {
     std::unique_lock<std::shared_mutex> lock(nodes_mutex);
-    
+
     auto it = nodes_map.find(node_name);
     if (it == nodes_map.end()) return MN_ERR_NOTFOUND;
     
     NodeID node_id = it->second;
     nodes_map.erase(it);
-    
+
     auto node_it = nodes.find(node_id);
     if (node_it != nodes.end()) {
         nodes.erase(node_it);
     }
-    
+
     return MN_OK;
 }
-
 
 int MycoNet::RemoveNode(NodeID node_id)
 {
     std::unique_lock<std::shared_mutex> lock(nodes_mutex);
-    
+
     auto it = nodes.find(node_id);
     if (it == nodes.end()) return MN_ERR_NOTFOUND;
     
     std::string node_name = it->second->node_name;
     nodes.erase(it);
-    
+
     auto name_it = nodes_map.find(node_name);
     if (name_it != nodes_map.end()) {
         nodes_map.erase(name_it);
     }
-    
+
     return MN_OK;
 }
 
-std::shared_ptr<MycoNet> MycoNet::GetInst(const std::string& name)
+std::shared_ptr<MycoNet> MycoNet::GetInst(const std::string &name)
 {
     std::lock_guard<std::mutex> lock(insts_mutex);
     auto it = insts.find(name);
@@ -332,7 +325,7 @@ std::shared_ptr<MycoNet> MycoNet::GetInst(const std::string& name)
     return new_net;
 }
 
-void MycoNet::DelInst(const std::string& name)
+void MycoNet::DelInst(const std::string &name)
 {
     std::lock_guard<std::mutex> lock(insts_mutex);
     insts.erase(name);
