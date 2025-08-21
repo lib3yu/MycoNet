@@ -35,6 +35,10 @@
 			"_GNU_SOURCE",
 			"UNITY_INCLUDE_DOUBLE",
 		],
+		"C_Cpp.default.browse.path": [
+			"${workspaceFolder}/test",
+			"${workspaceFolder}/src",
+		],
 		
 		"makefile.makefilePath": "${workspaceFolder}/Makefile",
 		"makefile.configureOnOpen": true,
