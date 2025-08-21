@@ -3,3 +3,4 @@ tests/build/
 obj/
 bin/
 .claude/
+3rd_party/
