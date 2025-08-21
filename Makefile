@@ -1,11 +1,12 @@
 # - utf-8 -
 
-.PHONY: clean ctest-unit demo1 demo2 demo3
+.PHONY: clean ctest-unit cpptest-unit demo1 demo2 demo3
 
 ######################################
 # target
 ######################################
 TARGET := myconet
+LIBRARY_NAME := $(TARGET)
 UNITEST_TARGET := ctest-unit
 GTEST_TARGET := cpptest-unit
 
@@ -31,6 +32,7 @@ CC_PREIFX :=
 
 CC  := $(CC_PREIFX)gcc
 CXX := $(CC_PREIFX)g++
+AR  := $(CC_PREIFX)ar
 SZ  ?= $(CC_PREIFX)size
 
 #######################################
@@ -91,6 +93,7 @@ COMMON_CFLAGS += -Wextra
 COMMON_CFLAGS += -ffunction-sections
 COMMON_CFLAGS += -fdata-sections
 COMMON_CFLAGS += -pthread
+COMMON_CFLAGS += -fPIC
 
 CFLAGS := $(CFLAGS) -std=c17
 CFLAGS := $(CFLAGS) -MMD
@@ -123,6 +126,9 @@ LDFLAGS := $(LDFLAGS) -lpthread
 # build the application
 #######################################
 
+SHARED_LIB := $(PROJ_CLIBDIR)/lib$(LIBRARY_NAME).so
+STATIC_LIB := $(PROJ_CLIBDIR)/lib$(LIBRARY_NAME).a
+
 # replace all file name suffix .c into .o 
 OBJECTS := 
 OBJECTS += $(addprefix $(PROJ_OBJDIR)/,$(notdir $(PROJ_CSOURCE:.c=.o)))
@@ -154,7 +160,7 @@ vpath %.cpp $(sort $(dir $(DEMO2_CXXSOURCE)))
 vpath %.c $(sort $(dir $(DEMO3_CSOURCE)))
 vpath %.cpp $(sort $(dir $(GTEST_CXXSOURCE)))
 
-all: $(PROJ_BINDIR)/$(TARGET)
+all: $(SHARED_LIB) $(STATIC_LIB)
 demo1: $(PROJ_BINDIR)/demo1
 demo2: $(PROJ_BINDIR)/demo2
 demo3: $(PROJ_BINDIR)/demo3
@@ -181,8 +187,12 @@ $(PROJ_BINDIR)/$(UNITEST_TARGET): $(UNITEST_OBJECTS) $(MAKEFILE_NAME) | $(PROJ_B
 	$(CC) $(UNITEST_OBJECTS) $(LDFLAGS) -o $@ 
 	$(SZ) $@
 
-$(PROJ_BINDIR)/$(TARGET): $(OBJECTS) $(MAKEFILE_NAME) | $(PROJ_BINDIR) 
-	$(CXX) $(OBJECTS) $(LDFLAGS) -o $@
+$(SHARED_LIB): $(OBJECTS) $(MAKEFILE_NAME) | $(PROJ_CLIBDIR)
+	$(CXX) -shared $(OBJECTS) $(LDFLAGS) -o $(SHARED_LIB)
+	$(SZ) $@
+
+$(STATIC_LIB): $(OBJECTS) $(MAKEFILE_NAME) | $(PROJ_CLIBDIR)
+	$(AR) rcs $@ $(OBJECTS)
 	$(SZ) $@
 
 $(PROJ_OBJDIR)/%.o: %.c $(MAKEFILE_NAME) | $(PROJ_OBJDIR) 
@@ -197,6 +207,9 @@ $(PROJ_BINDIR):
 $(PROJ_OBJDIR):
 	mkdir -p $@
 
+$(PROJ_CLIBDIR):
+	mkdir -p $@
+
 #######################################
 # commands
 #######################################
@@ -204,6 +217,7 @@ $(PROJ_OBJDIR):
 clean:
 	-rm -fR $(PROJ_OBJDIR)/
 	-rm -fR $(PROJ_BINDIR)/
+	-rm -fR $(PROJ_CLIBDIR)/
 
 -include $(wildcard $(PROJ_OBJDIR)/*.d)
 # *** EOF ***
