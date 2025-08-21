@@ -873,7 +873,7 @@ void test_invalid_subscribe_operation(void) {
     // 测试没有事件回调的节点尝试订阅
     // 根据实现，这可能返回错误或成功但不会收到事件
     result = myconet_subscribe(no_event_id, "target_node");
-    // 这里不进行具体断言，因为行为取决于实现
+    TEST_ASSERT_EQUAL_INT(MN_ERR_NOSUPPORT, result);
 
     // 清理
     myconet_remove_node_id(no_event_id);
