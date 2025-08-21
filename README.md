@@ -6,8 +6,6 @@
 
 --- 
 
-# MycoNet
-
 **MycoNet** is a lightweight, thread-safe, in-process messaging library for C and C++. It provides a flexible communication framework based on the publish-subscribe pattern, also supporting direct request-response (Pull) and one-way notification (Notify) models. Its decoupled, event-driven architecture makes it ideal for building modular and scalable applications.
 
 ## Core Concepts
