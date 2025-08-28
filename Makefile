@@ -33,6 +33,7 @@ CC_PREIFX :=
 CC  := $(CC_PREIFX)gcc
 CXX := $(CC_PREIFX)g++
 AR  := $(CC_PREIFX)ar
+LD  := $(CC_PREIFX)g++
 SZ  ?= $(CC_PREIFX)size
 
 #######################################
@@ -85,15 +86,17 @@ UNITEST_CDEFINES += -DUNITY_INCLUDE_DOUBLE
 #######################################
 
 COMMON_CFLAGS := 
+COMMON_CFLAGS += -O0 -g
 # COMMON_CFLAGS += -Og -g
-COMMON_CFLAGS += -O3 
-COMMON_CFLAGS += -DNDEBUG
+# COMMON_CFLAGS += -O3 
+# COMMON_CFLAGS += -DNDEBUG
 COMMON_CFLAGS += -Wall
 COMMON_CFLAGS += -Wextra
 COMMON_CFLAGS += -ffunction-sections
 COMMON_CFLAGS += -fdata-sections
 COMMON_CFLAGS += -pthread
-COMMON_CFLAGS += -fPIC
+# COMMON_CFLAGS += -fPIC
+COMMON_CFLAGS += -fno-omit-frame-pointer
 
 CFLAGS := $(CFLAGS) -std=c17
 CFLAGS := $(CFLAGS) -MMD
@@ -168,23 +171,23 @@ ctest-unit: $(PROJ_BINDIR)/$(UNITEST_TARGET)
 cpptest-unit: $(PROJ_BINDIR)/$(GTEST_TARGET)
 
 $(PROJ_BINDIR)/demo3: $(DEMO3_OBJECTS) $(OBJECTS) $(MAKEFILE_NAME) | $(PROJ_BINDIR)
-	$(CC) $(DEMO3_OBJECTS) $(OBJECTS) $(LDFLAGS) -o $@
+	$(LD) $(DEMO3_OBJECTS) $(OBJECTS) $(LDFLAGS) -o $@
 	$(SZ) $@
 
 $(PROJ_BINDIR)/$(GTEST_TARGET): $(GTEST_OBJECTS) $(MAKEFILE_NAME) | $(PROJ_BINDIR)
-	$(CXX) $(GTEST_OBJECTS) $(LDFLAGS) -lgtest -lgtest_main -o $@
+	$(LD) $(GTEST_OBJECTS) $(LDFLAGS) -lgtest -lgtest_main -o $@
 	$(SZ) $@
 
 $(PROJ_BINDIR)/demo2: $(DEMO2_OBJECTS) $(OBJECTS) $(MAKEFILE_NAME) | $(PROJ_BINDIR)
-	$(CC) $(DEMO2_OBJECTS) $(OBJECTS) $(LDFLAGS) -o $@ 
+	$(LD) $(DEMO2_OBJECTS) $(OBJECTS) $(LDFLAGS) -o $@ 
 	$(SZ) $@
 
 $(PROJ_BINDIR)/demo1: $(DEMO1_OBJECTS) $(OBJECTS) $(MAKEFILE_NAME) | $(PROJ_BINDIR)
-	$(CC) $(DEMO1_OBJECTS) $(OBJECTS) $(LDFLAGS) -o $@ 
+	$(LD) $(DEMO1_OBJECTS) $(OBJECTS) $(LDFLAGS) -o $@ 
 	$(SZ) $@
 
 $(PROJ_BINDIR)/$(UNITEST_TARGET): $(UNITEST_OBJECTS) $(MAKEFILE_NAME) | $(PROJ_BINDIR)
-	$(CC) $(UNITEST_OBJECTS) $(LDFLAGS) -o $@ 
+	$(LD) $(UNITEST_OBJECTS) $(LDFLAGS) -o $@ 
 	$(SZ) $@
 
 $(SHARED_LIB): $(OBJECTS) $(MAKEFILE_NAME) | $(PROJ_CLIBDIR)

@@ -61,7 +61,34 @@
 					"reveal": "always"
 				},
 				"group": "build"
-			}
+			},
+			{
+				"label": "Build C Test",
+				"command": "make",
+				"type": "shell",
+				"args": ["ctest-unit", "-j4"],
+				"problemMatcher": [
+					"$tsc"
+				],
+				"presentation": {
+					"reveal": "always"
+				},
+				"group": "build"
+			},
+			{
+				"label": "Build C++ Test",
+				"command": "make",
+				"type": "shell",
+				"args": ["cpptest-unit", "-j4"],
+				"problemMatcher": [
+					"$tsc"
+				],
+				"presentation": {
+					"reveal": "always"
+				},
+				"group": "build"
+			},
+
 		]
 	},
 	"launch": {
@@ -75,6 +102,36 @@
 				"args": [],
 				"stopAtEntry": true,
 				"preLaunchTask": "Build Demo",
+				"cwd": "${workspaceFolder}",
+				"environment": [],
+				"externalConsole": false,
+				"MIMode": "gdb",
+				"miDebuggerPath": "/usr/bin/gdb",
+				"setupCommands": []
+			},
+			{
+				"name": "Debug C Test",
+				"type": "cppdbg",
+				"request": "launch",
+				"program": "${workspaceFolder}/bin/ctest-unit",
+				"args": [],
+				"stopAtEntry": true,
+				"preLaunchTask": "Build C Test",
+				"cwd": "${workspaceFolder}",
+				"environment": [],
+				"externalConsole": false,
+				"MIMode": "gdb",
+				"miDebuggerPath": "/usr/bin/gdb",
+				"setupCommands": []
+			},
+			{
+				"name": "Debug C++ Test",
+				"type": "cppdbg",
+				"request": "launch",
+				"program": "${workspaceFolder}/bin/cpptest-unit",
+				"args": [],
+				"stopAtEntry": true,
+				"preLaunchTask": "Build C++ Test",
 				"cwd": "${workspaceFolder}",
 				"environment": [],
 				"externalConsole": false,
