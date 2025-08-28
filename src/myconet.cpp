@@ -177,7 +177,10 @@ int MycoNode::Publish(const void *buf, size_t size)
     std::unique_ptr<std::set<NodeID>> subscribers = nullptr;
     {
         std::shared_lock<std::shared_mutex> lock(net.spps_lock);
-        subscribers = std::make_unique<std::set<NodeID>>(net.ps_map[id]);
+        auto it = net.ps_map.find(id);
+        if (it == net.ps_map.end()) 
+            return MN_OK; // no subscribers also fine
+        subscribers = std::make_unique<std::set<NodeID>>(it->second);
     }
 
     for (const auto &sub_id : *subscribers)
