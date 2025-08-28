@@ -93,7 +93,7 @@ MN_API int myconet_unsubscribe_id(MycoNet_ID_t id, MycoNet_ID_t target_node_id)
 }
 
 
-MN_API int myconet_publish(MycoNet_ID_t id, const void *data_p, int size)
+MN_API int myconet_publish(MycoNet_ID_t id, const void *data_p, size_t size)
 {
     auto node = MycoNet::Inst().GetNode(id);
     if (node == nullptr) return MN_ERR_NOTFOUND;
@@ -101,7 +101,7 @@ MN_API int myconet_publish(MycoNet_ID_t id, const void *data_p, int size)
 }
 
 
-MN_API int myconet_pull(MycoNet_ID_t id, const char *target_node_name, void *data_p, uint32_t size)
+MN_API int myconet_pull(MycoNet_ID_t id, const char *target_node_name, void *data_p, size_t size)
 {
     auto node = MycoNet::Inst().GetNode(id);
     if (node == nullptr) return MN_ERR_NOTFOUND;
@@ -109,7 +109,7 @@ MN_API int myconet_pull(MycoNet_ID_t id, const char *target_node_name, void *dat
 }
 
 
-MN_API int myconet_pull_id(MycoNet_ID_t id, MycoNet_ID_t target_node_id, void *data_p, uint32_t size)
+MN_API int myconet_pull_id(MycoNet_ID_t id, MycoNet_ID_t target_node_id, void *data_p, size_t size)
 {
     auto node = MycoNet::Inst().GetNode(id);
     if (node == nullptr) return MN_ERR_NOTFOUND;
@@ -117,7 +117,7 @@ MN_API int myconet_pull_id(MycoNet_ID_t id, MycoNet_ID_t target_node_id, void *d
 }
 
 
-MN_API int myconet_notify(MycoNet_ID_t id, const char *target_node_name, const void *data_p, int size)
+MN_API int myconet_notify(MycoNet_ID_t id, const char *target_node_name, const void *data_p, size_t size)
 {
     auto node = MycoNet::Inst().GetNode(id);
     if (node == nullptr) return MN_ERR_NOTFOUND;
@@ -125,7 +125,7 @@ MN_API int myconet_notify(MycoNet_ID_t id, const char *target_node_name, const v
 }
 
 
-MN_API int myconet_notify_id(MycoNet_ID_t id, MycoNet_ID_t target_node_id, const void *data_p, int size)
+MN_API int myconet_notify_id(MycoNet_ID_t id, MycoNet_ID_t target_node_id, const void *data_p, size_t size)
 {
     auto node = MycoNet::Inst().GetNode(id);
     if (node == nullptr) return MN_ERR_NOTFOUND;

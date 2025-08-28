@@ -122,13 +122,13 @@ MN_API int myconet_remove_node_name(const char *name);
 MN_API int myconet_subscribe(MycoNet_ID_t id, const char *target_node_name);
 MN_API int myconet_unsubscribe(MycoNet_ID_t id, const char *target_node_name);
 MN_API int myconet_unsubscribe_id(MycoNet_ID_t id, MycoNet_ID_t target_node_id);
-MN_API int myconet_publish(MycoNet_ID_t id, const void *data_p, int size);
+MN_API int myconet_publish(MycoNet_ID_t id, const void *data_p, size_t size);
 // MN_API int myconet_publish_signal(MycoNet_ID_t id, const void *data_p, int size);
 // MN_API int myconet_publish_signal_async(MycoNet_ID_t id, const void *data_p, int size);
-MN_API int myconet_pull(MycoNet_ID_t id, const char *target_node_name, void *data_p, uint32_t size);
-MN_API int myconet_pull_id(MycoNet_ID_t id, MycoNet_ID_t target_node_id, void *data_p, uint32_t size);
-MN_API int myconet_notify(MycoNet_ID_t id, const char *target_node_name, const void *data_p, int size);
-MN_API int myconet_notify_id(MycoNet_ID_t id, MycoNet_ID_t target_node_id, const void *data_p, int size);
+MN_API int myconet_pull(MycoNet_ID_t id, const char *target_node_name, void *data_p, size_t size);
+MN_API int myconet_pull_id(MycoNet_ID_t id, MycoNet_ID_t target_node_id, void *data_p, size_t size);
+MN_API int myconet_notify(MycoNet_ID_t id, const char *target_node_name, const void *data_p, size_t size);
+MN_API int myconet_notify_id(MycoNet_ID_t id, MycoNet_ID_t target_node_id, const void *data_p, size_t size);
 MN_API int myconet_pub_num(MycoNet_ID_t id);
 MN_API int myconet_sub_num(MycoNet_ID_t id);
 

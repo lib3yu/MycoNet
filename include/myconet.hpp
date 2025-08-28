@@ -57,8 +57,8 @@ namespace MycoNets {
         EventMask event_mask;
         std::vector<uint8_t> cache;
         mutable std::shared_mutex cache_lock;
-        uint16_t cache_size;
-        uint16_t notify_size;
+        size_t cache_size;
+        size_t notify_size;
         void *user_data;
 
         bool check_notify_size;
