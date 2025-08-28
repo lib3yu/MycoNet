@@ -28,7 +28,8 @@ MycoNode::MycoNode(std::string name, const NodeParam &param, MycoNet &net) :
     notify_size(param.notify_size),
     user_data(param.user_data),
     check_notify_size(false),
-    using_cache(false)
+    using_cache(false),
+    trigger_latch(false)
 {
     if (event_cb == nullptr)
         event_mask = EVENT_NONE;
@@ -37,6 +38,9 @@ MycoNode::MycoNode(std::string name, const NodeParam &param, MycoNet &net) :
         cache.resize(cache_size);
         using_cache = true;
     }
+
+    if (conflags & CONF_LATCHED && using_cache)
+        trigger_latch = true;
 
     if (notify_size > 0 && conflags & CONF_NOTIFY_SIZE_CHECK)
         check_notify_size = true;
@@ -47,9 +51,10 @@ int MycoNode::Subscribe(std::string target_node_name)
     if (event_cb == nullptr || event_mask == EVENT_NONE)
         return MN_ERR_NOSUPPORT;
 
-    auto target_node = net.GetNode(target_node_name);
+    auto [target_id, target_node] = net.GetNode(target_node_name);
+
     // add to pending list
-    if (target_node.first == INVALID_ID)
+    if (target_id == INVALID_ID)
     {
         PendingItem item = {};
         item.node_id = id;
@@ -62,23 +67,21 @@ int MycoNode::Subscribe(std::string target_node_name)
     }
     // subscribe
     {
-        // dead write-lock prevention
-        std::scoped_lock lock(subscription_list_lock, target_node.second->subscriber_list_lock);
-        target_node.second->subscriber_list.push_back(id);
-        subscription_list.push_back(target_node.first);
+        std::unique_lock<std::shared_mutex> lock(net.spps_lock);
+        net.sp_map[id].insert(target_id);
+        net.ps_map[target_id].insert(id);
     }
     // notify latched when subscribed
-    std::shared_ptr<MycoNode> &node = target_node.second;
-    const NodeID &node_id = target_node.first;
-    if (node->using_cache && node->event_mask & EVENT_LATCHED)
-    {
-        std::shared_lock<std::shared_mutex> lock(node->cache_lock);
+    auto want_trigger_latch = target_node->trigger_latch;
+    auto i_can_recv_latch = event_mask & EVENT_LATCHED;
+    if (want_trigger_latch && i_can_recv_latch) {
+        std::shared_lock<std::shared_mutex> lock(target_node->cache_lock);
         EventParam param = {};
         param.event = EVENT_LATCHED;
-        param.sender = node_id;
+        param.sender = target_id;
         param.recver = id;
-        param.data_p = static_cast<void *>(node->cache.data());
-        param.size = node->cache_size;
+        param.data_p = static_cast<void *>(target_node->cache.data());
+        param.size = target_node->cache_size;
         event_cb(&param);
     }
     return MN_OK;
@@ -86,13 +89,9 @@ int MycoNode::Subscribe(std::string target_node_name)
 
 int MycoNode::Unsubscribe(const std::shared_ptr<MycoNode> &target_node)
 {
-    // dead write-lock prevention
-    std::scoped_lock lock(subscription_list_lock, target_node->subscriber_list_lock);
-    // Remove this node from target's subscriber list
-    target_node->subscriber_list.remove(id);
-    // Remove target from this node's subscription list
-    subscription_list.remove(target_node->id);
-
+    std::unique_lock<std::shared_mutex> lock(net.spps_lock);
+    net.sp_map[id].erase(target_node->id);
+    net.ps_map[target_node->id].erase(id);
     return MN_OK;
 }
 
@@ -175,17 +174,15 @@ int MycoNode::Publish(const void *buf, size_t size)
     }
 
     // copy subscribers list
-    std::vector<std::shared_ptr<MycoNode>> subscribers;
-    subscribers.reserve(subscriber_list.size());
+    std::unique_ptr<std::set<NodeID>> subscribers = nullptr;
     {
-        std::shared_lock<std::shared_mutex> lock(subscriber_list_lock);
-        for (const auto &sub_id : subscriber_list) {
-            subscribers.push_back(net.GetNode(sub_id));
-        }
+        std::shared_lock<std::shared_mutex> lock(net.spps_lock);
+        subscribers = std::make_unique<std::set<NodeID>>(net.ps_map[id]);
     }
 
-    for (const auto &sub_node : subscribers)
+    for (const auto &sub_id : *subscribers)
     {
+        auto sub_node = net.GetNode(sub_id);
         if (sub_node && sub_node->event_mask & EVENT_PUBLISH)
         {
             EventParam param = {};
@@ -227,6 +224,15 @@ int MycoNode::Notify(NodeID target_node_id, const void *buf, size_t size)
     auto target_node = net.GetNode(target_node_id);
     if (target_node == nullptr) return MN_ERR_NOTFOUND;
     return Notify(target_node, buf, size);
+}
+int MycoNode::SubNum() {
+    std::shared_lock<std::shared_mutex> lock(net.spps_lock);
+    return net.ps_map[id].size();
+}
+
+int MycoNode::PubNum() {
+    std::shared_lock<std::shared_mutex> lock(net.spps_lock);
+    return net.sp_map[id].size();
 }
 
 // =====================================================
@@ -298,17 +304,37 @@ int MycoNet::RemoveNode(std::string node_name)
 
 int MycoNet::RemoveNode(NodeID node_id)
 {
-    std::unique_lock<std::shared_mutex> lock(nodes_mutex);
+    std::shared_ptr<MycoNode> node_p = nullptr;
+    {
+        std::shared_lock<std::shared_mutex> lock(nodes_mutex);
+        auto it = nodes.find(node_id);
+        if (it == nodes.end()) return MN_ERR_NOTFOUND;
+        node_p = it->second;
+    }
 
-    auto it = nodes.find(node_id);
-    if (it == nodes.end()) return MN_ERR_NOTFOUND;
-    
-    std::string node_name = it->second->node_name;
-    nodes.erase(it);
+    // step1: remove sub/pub relations
+    {
+        std::unique_lock<std::shared_mutex> lock(spps_lock);
+        // Remove this node from all subscription maps
+        ps_map.erase(node_id);
+        sp_map.erase(node_id);
+        
+        // Remove this node_id from all other nodes' maps
+        for (auto& pair : ps_map) {
+            pair.second.erase(node_id);
+        }
+        for (auto& pair : sp_map) {
+            pair.second.erase(node_id);
+        }
+    }
 
-    auto name_it = nodes_map.find(node_name);
-    if (name_it != nodes_map.end()) {
-        nodes_map.erase(name_it);
+    // step2: remove node from nodes
+    {
+        std::unique_lock<std::shared_mutex> lock(nodes_mutex);
+        node_p->id = INVALID_ID;
+        // nodes_map[node_p->node_name].earse();
+        nodes_map.erase(node_p->node_name);
+        nodes.erase(node_id);
     }
 
     return MN_OK;

@@ -4,6 +4,7 @@
 #include "myconet.h"
 #include <string>
 #include <map>
+#include <set>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
@@ -60,13 +61,9 @@ namespace MycoNets {
         uint16_t notify_size;
         void *user_data;
 
-        std::list<NodeID> subscriber_list;
-        std::shared_mutex subscriber_list_lock;
-        std::list<NodeID> subscription_list;
-        std::shared_mutex subscription_list_lock;
-
         bool check_notify_size;
         bool using_cache;
+        bool trigger_latch;
         
     public:
         MycoNode() = delete;
@@ -88,16 +85,8 @@ namespace MycoNets {
         // int Pull0(NodeID target_node_id, std::function<void (const void *data_p, uint32_t size)>, size_t size);
         // int Push(NodeID target_node_id, const void *buf, size_t size) = delete;
         // int Push(std::string target_node_name, const void *buf, size_t size) = delete;
-
-        inline int SubNum() {
-            std::shared_lock<std::shared_mutex> lock(subscriber_list_lock);
-            return subscriber_list.size();
-        }
-
-        inline int PubNum() {
-            std::shared_lock<std::shared_mutex> lock(subscription_list_lock);
-            return subscription_list.size();
-        }
+        int SubNum();
+        int PubNum();
 
     protected:
         MycoNode(std::string name, const NodeParam &param, MycoNet &net);
@@ -130,6 +119,11 @@ namespace MycoNets {
         std::mutex pending_list_mutex;
 
         std::atomic<NodeID> next_id;
+        
+        // we think this is not a high-frequency operation
+        std::map<NodeID, std::set<NodeID>> sp_map; // subscriber -> publisher(s)
+        std::map<NodeID, std::set<NodeID>> ps_map; // publisher -> subscriber(s)
+        std::shared_mutex spps_lock;
 
         static std::map<std::string, std::shared_ptr<MycoNet>> insts;
         static std::mutex insts_mutex;
