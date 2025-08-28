@@ -188,7 +188,7 @@ int MycoNode::Publish(const void *buf, size_t size)
             EventParam param = {};
             param.event = EVENT_PUBLISH;
             param.sender = id;
-            param.recver = sub_node->id;
+            param.recver = sub_node->MyID();
             param.data_p = const_cast<void *>(buf);
             param.size = size;
             sub_node->event_cb(&param);
@@ -279,7 +279,9 @@ std::shared_ptr<MycoNode> MycoNet::NewNode(std::string node_name, const NodePara
     for (const auto &item : items_to_process)
     {
         auto subscriber_node = GetNode(item.node_id);
-        subscriber_node->Subscribe(node_name);
+        if (subscriber_node) {
+            subscriber_node->Subscribe(node_name);
+        }
     }
     return new_node;
 }
@@ -294,23 +296,25 @@ int MycoNet::RemoveNode(std::string node_name)
         node_id = it->second;
     }
     
-    // 直接调用RemoveNode(NodeID)来避免重复代码并确保完整清理
     return RemoveNode(node_id);
 }
 
 int MycoNet::RemoveNode(NodeID node_id)
 {
-    std::shared_ptr<MycoNode> node_p = nullptr;
-    {
-        std::shared_lock<std::shared_mutex> lock(nodes_mutex);
-        auto it = nodes.find(node_id);
-        if (it == nodes.end()) return MN_ERR_NOTFOUND;
-        node_p = it->second;
-    }
+    std::unique_lock<std::shared_mutex> nodes_lock(nodes_mutex);
+    auto it = nodes.find(node_id);
+    if (it == nodes.end()) return MN_ERR_NOTFOUND;
+    
+    std::shared_ptr<MycoNode> node_p = it->second;
+    std::string node_name = node_p->node_name;
+
+    // Mark node as invalid before cleaning up subscriptions
+    node_p->id = INVALID_ID;
 
     // step1: remove sub/pub relations
     {
         std::unique_lock<std::shared_mutex> lock(spps_lock);
+        
         // Remove this node from all subscription maps
         ps_map.erase(node_id);
         sp_map.erase(node_id);
@@ -324,14 +328,9 @@ int MycoNet::RemoveNode(NodeID node_id)
         }
     }
 
-    // step2: remove node from nodes
-    {
-        std::unique_lock<std::shared_mutex> lock(nodes_mutex);
-        node_p->id = INVALID_ID;
-        // nodes_map[node_p->node_name].earse();
-        nodes_map.erase(node_p->node_name);
-        nodes.erase(node_id);
-    }
+    // step2: remove node from nodes maps
+    nodes_map.erase(node_name);
+    nodes.erase(node_id);
 
     return MN_OK;
 }

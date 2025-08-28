@@ -139,15 +139,19 @@ namespace MycoNets {
             auto it = nodes_map.find(node_name);
             std::pair<NodeID, std::shared_ptr<MycoNode>> pair = {INVALID_ID, nullptr};
             if (it != nodes_map.end()) {
-                pair.first = it->second;
-                pair.second = nodes[it->second];
+                NodeID node_id = it->second;
+                auto node_it = nodes.find(node_id);
+                if (node_it != nodes.end() && node_it->second->id != INVALID_ID) {
+                    pair.first = node_id;
+                    pair.second = node_it->second;
+                }
             }
             return pair;
         }
         std::shared_ptr<MycoNode> GetNode(int node_id) {
             std::shared_lock<std::shared_mutex> lock(nodes_mutex);
             auto it = nodes.find(node_id);
-            return it != nodes.end() ? it->second : nullptr;
+            return (it != nodes.end() && it->second->id != INVALID_ID) ? it->second : nullptr;
         }
 
         static std::shared_ptr<MycoNet> GetInst(const std::string& name = "default");
