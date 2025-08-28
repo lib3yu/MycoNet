@@ -23,7 +23,7 @@
 -   **Dual API**: Offers both a modern C++ API (using `std::shared_ptr`, `std::function`, etc.) and a pure C API for maximum compatibility.
 -   **Event-Driven**: Node logic is implemented via event callbacks. Nodes can subscribe to specific events like `EVENT_PUBLISH`, `EVENT_PULL`, etc., using an event mask.
 -   **Data Caching**: Nodes can be configured with a data cache. When publishing, the data is stored in the cache. This is highly efficient for `Pull` operations.
--   **Latching**: A powerful feature for publishers. When a new node subscribes to a "latched" publisher, it immediately receives the last cached message, which is perfect for getting initial state.
+-   **Latching**: A powerful feature for publishers. When a new node subscribes to a "latched" publisher, it immediately receives the last cached message, which is perfect for getting initial state. This triggers the `EVENT_LATCHED` event for subscribers.
 -   **Pending Subscriptions**: If a node tries to subscribe to a non-existent node, the request is queued. The subscription is automatically completed once the target node is created, decoupling initialization order.
 
 ## Usage & Examples
