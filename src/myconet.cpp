@@ -286,20 +286,16 @@ std::shared_ptr<MycoNode> MycoNet::NewNode(std::string node_name, const NodePara
 
 int MycoNet::RemoveNode(std::string node_name)
 {
-    std::unique_lock<std::shared_mutex> lock(nodes_mutex);
-
-    auto it = nodes_map.find(node_name);
-    if (it == nodes_map.end()) return MN_ERR_NOTFOUND;
-    
-    NodeID node_id = it->second;
-    nodes_map.erase(it);
-
-    auto node_it = nodes.find(node_id);
-    if (node_it != nodes.end()) {
-        nodes.erase(node_it);
+    NodeID node_id;
+    {
+        std::shared_lock<std::shared_mutex> lock(nodes_mutex);
+        auto it = nodes_map.find(node_name);
+        if (it == nodes_map.end()) return MN_ERR_NOTFOUND;
+        node_id = it->second;
     }
-
-    return MN_OK;
+    
+    // 直接调用RemoveNode(NodeID)来避免重复代码并确保完整清理
+    return RemoveNode(node_id);
 }
 
 int MycoNet::RemoveNode(NodeID node_id)

@@ -192,9 +192,6 @@ namespace MycoNets {
         NodeID MakeNewNodeId() {return next_id.fetch_add(1);}
         int RemoveNode(std::string node_name);
         int RemoveNode(NodeID node_id);
-        inline int RemoveNode(MycoNode &node) {
-            return RemoveNode(node.id);
-        }
 
         NodeID NodeExists(std::string node_name) {
             std::shared_lock<std::shared_mutex> lock(nodes_mutex);
