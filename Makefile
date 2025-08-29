@@ -95,7 +95,7 @@ COMMON_CFLAGS += -Wextra
 COMMON_CFLAGS += -ffunction-sections
 COMMON_CFLAGS += -fdata-sections
 COMMON_CFLAGS += -pthread
-# COMMON_CFLAGS += -fPIC
+COMMON_CFLAGS += -fPIC
 COMMON_CFLAGS += -fno-omit-frame-pointer
 
 CFLAGS := $(CFLAGS) -std=c17

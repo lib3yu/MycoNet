@@ -78,6 +78,7 @@ namespace MycoNets {
         // int PublishSignal(const void *buf, size_t size) = delete;
         int Pull(NodeID target_node_id, void *buf, size_t size);
         int Pull(std::string target_node_name, void *buf, size_t size);
+        static int PullAnon(std::string target_node_name, void *buf, size_t size);
         int Notify(std::string target_node_name, const void *buf, size_t size);
         int Notify(NodeID target_node_id, const void *buf, size_t size);
         // TODO: features for future

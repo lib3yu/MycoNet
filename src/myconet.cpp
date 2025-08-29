@@ -95,6 +95,24 @@ int MycoNode::Unsubscribe(const std::shared_ptr<MycoNode> &target_node)
     return MN_OK;
 }
 
+int MycoNode::PullAnon(std::string target_node_name, void *buf, size_t size)
+{
+    if (!buf) return MN_ERR_NULL_POINTER;
+
+    auto [target_id, target_node] = MycoNet::Inst().GetNode(target_node_name);
+    if (target_id == INVALID_ID) return MN_ERR_NOTFOUND;
+    if (size != target_node->cache_size) 
+        return MN_ERR_SIZE_MISMATCH;
+
+    if(target_node->using_cache) {
+        std::shared_lock<std::shared_mutex> lock(target_node->cache_lock);
+        memcpy(buf, target_node->cache.data(), size);
+        return MN_INFO_CACHE_PULLED;
+    }
+
+    return MN_ERR_NOSUPPORT;
+}
+
 int MycoNode::Pull(const std::shared_ptr<MycoNode> &target_node, void *buf, size_t size)
 {
     if (!buf) return MN_ERR_NULL_POINTER;

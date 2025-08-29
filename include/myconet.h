@@ -125,6 +125,7 @@ MN_API int myconet_unsubscribe_id(MycoNet_ID_t id, MycoNet_ID_t target_node_id);
 MN_API int myconet_publish(MycoNet_ID_t id, const void *data_p, size_t size);
 // MN_API int myconet_publish_signal(MycoNet_ID_t id, const void *data_p, int size);
 // MN_API int myconet_publish_signal_async(MycoNet_ID_t id, const void *data_p, int size);
+MN_API int myconet_pull_anon(const char *target_node_name, void *data_p, size_t size);  // anonymous pull
 MN_API int myconet_pull(MycoNet_ID_t id, const char *target_node_name, void *data_p, size_t size);
 MN_API int myconet_pull_id(MycoNet_ID_t id, MycoNet_ID_t target_node_id, void *data_p, size_t size);
 MN_API int myconet_notify(MycoNet_ID_t id, const char *target_node_name, const void *data_p, size_t size);

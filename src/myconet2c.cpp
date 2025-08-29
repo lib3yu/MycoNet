@@ -108,6 +108,11 @@ MN_API int myconet_pull(MycoNet_ID_t id, const char *target_node_name, void *dat
     return node->Pull(target_node_name, data_p, size);
 }
 
+MN_API int myconet_pull_anon(const char *target_node_name, void *data_p, size_t size)
+{
+    return MycoNode::PullAnon(target_node_name, data_p, size);
+}
+
 
 MN_API int myconet_pull_id(MycoNet_ID_t id, MycoNet_ID_t target_node_id, void *data_p, size_t size)
 {
