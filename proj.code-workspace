@@ -22,7 +22,8 @@
 	"settings": {
 		"editor.tabSize": 4,
 		"editor.insertSpaces": true,
-
+        "C_Cpp.default.browse.databaseFilename": "${workspaceFolder}/.vscode/.browse.vc.db",
+        // "C_Cpp.loggingLevel": "Debug",
 		"C_Cpp.default.compilerPath": "/usr/bin/gcc",
 		"C_Cpp.default.cStandard": "c17",
 		"C_Cpp.default.cppStandard": "c++17",
