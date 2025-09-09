@@ -273,10 +273,13 @@ std::shared_ptr<MycoNode> MycoNet::NewNode(std::string node_name, const NodePara
     std::shared_ptr<MycoNode> new_node;
     {
         std::unique_lock<std::shared_mutex> lock(nodes_mutex);
-        if (nodes_map.find(node_name) != nodes_map.end())
+        if (!node_name.empty() && nodes_map.find(node_name) != nodes_map.end())
             return nullptr;
 
         NodeID node_id = MakeNewNodeId();
+        if (node_name.empty()) {
+            node_name = "__anonym_node__" + std::to_string(node_id);
+        }
         new_node = std::make_shared<MakeNewNodeEnable>(node_name, param, *this);
         new_node->id = node_id;
         nodes[node_id] = new_node;

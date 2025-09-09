@@ -32,7 +32,7 @@ MN_API const char* myconet_strerr(int err)
 
 MN_API int myconet_create_node(MycoNet_ID_t *id, const char *name, const MycoNet_NodeParam_t *conf)
 {
-    if (!id || !name || !conf) return MN_ERR_NULL_POINTER;
+    if (!id || !conf) return MN_ERR_NULL_POINTER;
     
     NodeParam param = {};
     param.size = conf->size;
@@ -41,8 +41,9 @@ MN_API int myconet_create_node(MycoNet_ID_t *id, const char *name, const MycoNet
     param.event_cb = conf->event_cb;
     param.user_data = conf->user_data;
     param.notify_size = conf->notify_size;
-
-    auto new_node = MycoNet::Inst().NewNode(name, param);
+    
+    std::string node_name = name == nullptr ? "" : name;
+    auto new_node = MycoNet::Inst().NewNode(node_name, param);
     if (new_node == nullptr) {
         *id = INVALID_ID;
         return MN_ERR_FAIL;
